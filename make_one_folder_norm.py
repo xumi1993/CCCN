@@ -153,16 +153,21 @@ def perwhiten(folder, dt, wlen, cuttime1,  cuttime2, reftime, f1,f2,f3,f4):
         if tr.stats.starttime > cutbtime or tr.stats.endtime < cutetime:
             continue
         tr.trim(cutbtime, cutetime)
-        #----------normalize----------
-        if wlen == 0:
-            tr.data /= np.abs(tr.data)
-        elif wlen > 0:
-            tr.data /= smooth(np.abs(tr.data),half_len=nwlen)
-        else:
-            raise ValueError("Half window length must be greater than zero")
-        tr.write(join(folder,"%s.%s.%s.BHZ.norm" % (tr.stats.network, tr.stats.station, tr.stats.location)), "SAC")
         #----------- Whiten -----------
-        tr.data = whiten(tr.data, nft, dt, f1, f2, f3, f4)
+        ftr = whiten(tr.data, nft, dt, f1, f2, f3, f4)
+
+        #----------normalize----------
+        wdata = np.real(fftpack.ifft(ftr))
+        if wlen == 0:
+            wdata /= np.abs(wdata)
+        elif wlen > 0:
+            wdata /= smooth(np.abs(wdata),half_len=nwlen)
+        else:
+            raise ValueError("Half window length must be greater than zero")        
+        tr.data = wdata
+
+        tr.write(join(folder,"%s.%s.%s.BHZ.norm" % (tr.stats.network, tr.stats.station, tr.stats.location)), "SAC")
+        tr.data = fftpack.fft(tr.data, nft)
         #-------write spec to array --------
         fft_all.append(tr)
         
@@ -184,5 +189,5 @@ def docc(folder_name, fft_all, nt, dt, finalcut, reftime):
             ccf = fftpack.ifft(fft_all[i].data*np.conj(fft_all[j].data), nt).real/nt
             ccf = np.concatenate((ccf[-nt + 1:], ccf[:nt + 1]))
             cor.data = ccf[dn]
-            cor.write(join(outpath, "COR_%s.%s_%s.%s.SAC" % 
+            cor.write(join(outpath, "COR_%s.%s_%s.%s.norm.SAC" % 
                 (fft_all[i].stats.network,fft_all[i].stats.station, fft_all[j].stats.network, fft_all[j].stats.station)),"SAC")

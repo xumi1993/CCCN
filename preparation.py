@@ -5,7 +5,7 @@ import getopt
 import os
 import numpy as np
 import obspy
-from make_one_folder import transf, perwhiten,docc
+from make_one_folder_norm import transf, perwhiten,docc
 
 def Usage():
     print("preparation.py -w<half-length> -f<f1/f2/f3/f4> -d<dt> -c<cut1/cut2> -l<maxlag> -S<suffix> floder_lst")
