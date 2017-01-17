@@ -1,0 +1,12 @@
+run following command in current path for an example
+
+python preparation.py -w20 -f0.01/0.02/0.067/0.08 -d1 -c1000/85000 -l500 -SSAC folder.lst
+
+-w half window length in sec
+-f parameters of bandpass filter
+-d target sampling
+-c begin and endtime of cutting waves
+-l lag of cross-correlation 
+-S suffix of raw data
+folder.lst
+path/to/each/event  "refrence time of this event" 
