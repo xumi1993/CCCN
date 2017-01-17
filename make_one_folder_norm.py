@@ -153,6 +153,12 @@ def perwhiten(folder, dt, wlen, cuttime1,  cuttime2, reftime, f1,f2,f3,f4):
         if tr.stats.starttime > cutbtime or tr.stats.endtime < cutetime:
             continue
         tr.trim(cutbtime, cutetime)
+        if wlen == 0:
+            tr.data /= np.abs(tr.data)
+        elif wlen > 0:
+            tr.data /= smooth(np.abs(tr.data),half_len=nwlen)
+        else:
+            raise ValueError("Half window length must be greater than zero")
         #----------- Whiten -----------
         ftr = whiten(tr.data, nft, dt, f1, f2, f3, f4)
 
