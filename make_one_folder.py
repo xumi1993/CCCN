@@ -186,7 +186,5 @@ def docc(folder_name, fft_all, nt, dt, finalcut, reftime):
             ccf = fftpack.ifft(fft_all[i].data*np.conj(fft_all[j].data), nt).real/nt
             ccf = np.concatenate((ccf[-nt + 1:], ccf[:nt + 1]))
             cor.data = ccf[dn]
-            plt.plot(cor.data)
-            plt.show()
             cor.write(join(outpath, "COR_%s.%s_%s.%s.SAC" % 
                 (fft_all[i].stats.network,fft_all[i].stats.station, fft_all[j].stats.network, fft_all[j].stats.station)),"SAC")
