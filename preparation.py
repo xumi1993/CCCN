@@ -8,7 +8,7 @@ import obspy
 from make_one_folder import transf, perwhiten,docc
 
 def Usage():
-    print("preparation.py -w<half-length> -f<f1/f2/f3/f4> -d<dt> -c<cut1/cut2> -l<maxlag> -S<suffix> floder_lst")
+    print("preparation.py -f<f1/f2/f3/f4> -d<dt> -c<cut1/cut2> -l<maxlag> [-w<half-length>] [-S<suffix>] floder_lst")
 
 argv = sys.argv[1:]
 for o in argv:
@@ -25,6 +25,8 @@ if opts == []:
     Usage()
     sys.exit(1)
 
+suffix = "SAC"
+wlen = 0
 for op, value in opts:
     if op == "-w":
         wlen = float(value)
@@ -51,7 +53,7 @@ with open(folder_lst) as flst:
         folder = folder.strip()
         folder_name = folder.split()[0]
         reftime = obspy.UTCDateTime(folder.split()[1])
-        nt = (cuttime2 - cuttime1)/dt
+        nt = int(np.floor((cuttime2 - cuttime1)/dt))
         transf(folder_name, suffix, dt)
         fft_all = perwhiten(folder_name, dt, wlen, cuttime1, cuttime2, reftime, f1,f2,f3,f4)
         if len(fft_all) <= 1:
