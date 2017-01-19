@@ -84,7 +84,7 @@ def whiten(data, Nfft, delta, f1, f2, f3, f4):
     nt2 = int(f2/dom)
     nt3 = int(f3/dom)
     nt4 = int(f4/dom)
-
+    Nfft *= 2
     FFTRawSign = fftpack.fft(data, Nfft)
 
     FFTRawSign /= smooth(abs(FFTRawSign), half_len=20)

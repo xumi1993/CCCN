@@ -141,8 +141,12 @@ def transf(folder, suffix, dt):
     s += "q\n"
     p.communicate(s.encode())
 
+def shift_cut(wave, lag):
+    swave = np.concatenate((wave[1:lag+1][::-1],[wave[lag]],wave[len(wave)-lag:len(wave)-1][::-1]))
+    return swave
+
 def perwhiten(folder, dt, wlen, cuttime1,  cuttime2, reftime, f1,f2,f3,f4):
-    nft = int(next_pow_2((cuttime2 - cuttime1)/dt))
+    nft = int(next_pow_2((cuttime2 - cuttime1)/dt))*2
     nwlen = int(wlen/dt)
     st = obspy.read(join(folder,"*.BHZ"))
     fft_all = obspy.Stream()
@@ -173,6 +177,7 @@ def docc(folder_name, fft_all, nt, dt, finalcut, reftime):
     if not os.path.exists(outpath):
         os.makedirs(outpath)
     ns = len(fft_all)
+    nft = fft_all[0].stats.npts
     lag = int(finalcut/dt)
     mid_pos = int(nt/2)
     tcorr = np.arange(-nt + 1, nt)
@@ -182,9 +187,10 @@ def docc(folder_name, fft_all, nt, dt, finalcut, reftime):
     cor.stats.starttime = reftime
     for i in np.arange(ns-1):
         for j in np.arange(i+1,ns):
-            ccf = fftpack.ifftshift(fftpack.ifft(fft_all[i].data*np.conj(fft_all[j].data), nt)).real
-#            ccf = np.concatenate((ccf[-nt + 1:], ccf[:nt + 1]))
-            cor.data = ccf[mid_pos-lag:mid_pos+lag+1]
+            ccf = fftpack.ifft(fft_all[i].data*np.conj(fft_all[j].data), nft).real
+            #ccf = np.concatenate((ccf[-nt + 1:], ccf[:nt + 1]))
+            #cor.data = ccf[dn]
+            cor.data = shift_cut(ccf,lag)
             cor.stats.network = fft_all[i].stats.network
             cor.stats.station = fft_all[i].stats.station
             cor.stats.location = fft_all[i].stats.location
