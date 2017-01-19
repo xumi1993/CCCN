@@ -5,10 +5,10 @@ import getopt
 import os
 import numpy as np
 import obspy
-from make_one_folder import transf, perwhiten,docc
+from cccn.make_one_folder import transf, perwhiten,docc
 
 def Usage():
-    print("preparation.py -f<f1/f2/f3/f4> -d<dt> -c<cut1/cut2> -l<maxlag> [-w<half-length>] [-S<suffix>] floder_lst")
+    print("preparation.py -f<f1/f2/f3/f4> -d<dt> -c<cut1/cut2> -l<maxlag> [-t] [-w<half-length>] [-S<suffix>] floder_lst")
 
 argv = sys.argv[1:]
 for o in argv:
@@ -17,7 +17,7 @@ for o in argv:
         break
 
 try:
-    opts,args = getopt.getopt(argv, "w:f:S:d:c:l:")
+    opts,args = getopt.getopt(argv, "w:f:S:d:c:l:t")
 except:
     print('Arguments are not found!')
     sys.exit(1)
@@ -27,6 +27,7 @@ if opts == []:
 
 suffix = "SAC"
 wlen = 0
+istransf = True
 for op, value in opts:
     if op == "-w":
         wlen = float(value)
@@ -44,6 +45,8 @@ for op, value in opts:
         cuttime2 = float(value.split('/')[1])
     elif op == "-l":
         lag = float(value)
+    elif op == "-t":
+        istransf = False
     else:
         Usage()
         sys.exit(1)
@@ -51,10 +54,12 @@ for op, value in opts:
 with open(folder_lst) as flst:
     for folder in flst.readlines():
         folder = folder.strip()
+        print(folder)
         folder_name = folder.split()[0]
         reftime = obspy.UTCDateTime(folder.split()[1])
         nt = int(np.floor((cuttime2 - cuttime1)/dt))
-        transf(folder_name, suffix, dt)
+        if istransf:
+            transf(folder_name, suffix, dt)
         fft_all = perwhiten(folder_name, dt, wlen, cuttime1, cuttime2, reftime, f1,f2,f3,f4)
         if len(fft_all) <= 1:
             print("not enough event in folder %s" % folder_name)

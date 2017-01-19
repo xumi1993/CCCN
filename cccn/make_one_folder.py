@@ -174,15 +174,24 @@ def docc(folder_name, fft_all, nt, dt, finalcut, reftime):
         os.makedirs(outpath)
     ns = len(fft_all)
     lag = int(finalcut/dt)
+    mid_pos = int(nt/2)
     tcorr = np.arange(-nt + 1, nt)
     dn = np.where(np.abs(tcorr) <= lag)[0]
-    cor = obspy.Trace()
+    cor = fft_all[0].copy()
     cor.stats.delta = dt
     cor.stats.starttime = reftime
     for i in np.arange(ns-1):
         for j in np.arange(i+1,ns):
-            ccf = fftpack.ifft(fft_all[i].data*np.conj(fft_all[j].data), nt).real
-            ccf = np.concatenate((ccf[-nt + 1:], ccf[:nt + 1]))
-            cor.data = ccf[dn]
-            cor.write(join(outpath, "COR_%s.%s_%s.%s.SAC" % 
-                (fft_all[i].stats.network,fft_all[i].stats.station, fft_all[j].stats.network, fft_all[j].stats.station)),"SAC")
+            ccf = fftpack.ifftshift(fftpack.ifft(fft_all[i].data*np.conj(fft_all[j].data), nt)).real
+#            ccf = np.concatenate((ccf[-nt + 1:], ccf[:nt + 1]))
+            cor.data = ccf[mid_pos-lag:mid_pos+lag+1]
+            cor.stats.network = fft_all[i].stats.network
+            cor.stats.station = fft_all[i].stats.station
+            cor.stats.location = fft_all[i].stats.location
+            cor.stats.sac.stla = fft_all[i].stats.sac.stla
+            cor.stats.sac.stlo = fft_all[i].stats.sac.stlo
+            cor.stats.sac.evla = fft_all[j].stats.sac.stla
+            cor.stats.sac.evlo = fft_all[j].stats.sac.stlo
+            cor.write(join(outpath, "COR_%s.%s.%s_%s.%s.%s.SAC" % 
+                (fft_all[i].stats.network,fft_all[i].stats.station,fft_all[i].stats.location,
+                 fft_all[j].stats.network,fft_all[j].stats.station,fft_all[j].stats.location)),"SAC")
