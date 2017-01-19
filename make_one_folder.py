@@ -181,7 +181,7 @@ def docc(folder_name, fft_all, nt, dt, finalcut, reftime):
     cor.stats.starttime = reftime
     for i in np.arange(ns-1):
         for j in np.arange(i+1,ns):
-            ccf = fftpack.ifft(fft_all[i].data*np.conj(fft_all[j].data), nt).real/nt
+            ccf = fftpack.ifft(fft_all[i].data*np.conj(fft_all[j].data), nt).real
             ccf = np.concatenate((ccf[-nt + 1:], ccf[:nt + 1]))
             cor.data = ccf[dn]
             cor.write(join(outpath, "COR_%s.%s_%s.%s.SAC" % 
