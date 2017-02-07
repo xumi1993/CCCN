@@ -94,20 +94,22 @@ def whiten(data, Nfft, delta, f1, f2, f3, f4):
 
     FFTRawSign = fftpack.fft(data, Nfft)
 
-    FFTRawSign /= smooth(abs(FFTRawSign), half_len=20)
+    FFTRawSign /= smooth(np.abs(FFTRawSign), half_len=20)
     # Left tapering:
     FFTRawSign[0:nt1] *= 0
-    FFTRawSign[nt1:nt2] = np.cos(np.linspace(np.pi / 2., np.pi, nt2 - nt1)) ** 2 * FFTRawSign[nt1:nt2]
+    FFTRawSign[nt1:nt2] = np.cos(np.linspace(np.pi / 2., np.pi, nt2 - nt1)) ** 2 * np.exp(1j * np.angle(FFTRawSign[nt1:nt2]))
+    #FFTRawSign[nt1:nt2] = np.cos(np.linspace(np.pi / 2., np.pi, nt2 - nt1)) ** 2 * FFTRawSign[nt1:nt2]
     # Pass band:
-#    FFTRawSign[porte1:porte2] = np.exp(1j * np.angle(FFTRawSign[porte1:porte2]))
+    FFTRawSign[nt2:nt3] = np.exp(1j * np.angle(FFTRawSign[nt2:nt3]))
     # Right tapering:
-    FFTRawSign[nt3:nt4] = np.cos(np.linspace(0., np.pi / 2., nt4 - nt3)) ** 2 * FFTRawSign[nt3:nt4]
+    FFTRawSign[nt3:nt4] = np.cos(np.linspace(0., np.pi / 2., nt4 - nt3)) ** 2 * np.exp(1j * np.angle(FFTRawSign[nt3:nt4]))
+    #FFTRawSign[nt3:nt4] = np.cos(np.linspace(0., np.pi / 2., nt4 - nt3)) ** 2 * FFTRawSign[nt3:nt4]
     FFTRawSign[nt4:Nfft+1] *= 0
     
     # Hermitian symmetry (because the input is real)
     FFTRawSign[int(-Nfft/2+1):] = FFTRawSign[1:int(Nfft/2)].conjugate()[::-1]
     
-    return FFTRawSign
+    return FFTRawSign, dom
 
 
 def transf(folder, suffix, dt):
@@ -133,9 +135,9 @@ def transf(folder, suffix, dt):
         s += "rmean;rtr\n"
         if ismerge:
             s += "merge g z o a\n"
+        s += "transfer FROM POLEZERO SUBTYPE %s TO VEL freq 0.005 0.01 0.2 0.25\n" % (resfile)
         s += "lp c %f\n" % freq
         s += "interp delta %6.3f\n" % dt
-        s += "transfer FROM POLEZERO SUBTYPE %s TO VEL freq 0.01 0.02 0.067 0.08\n" % (resfile)
         s += "rmean;rtr\n"
         s += "w %s/%s.%s.%s.BHZ\n" % (folder, sta[0], sta[1], sta[2])
     s += "q\n"
@@ -146,7 +148,7 @@ def shift_cut(wave, lag):
     return swave
 
 def perwhiten(folder, dt, wlen, cuttime1,  cuttime2, reftime, f1,f2,f3,f4):
-    nft = int(next_pow_2((cuttime2 - cuttime1)/dt))*2
+    nft = int(next_pow_2((cuttime2 - cuttime1)/dt))
     nwlen = int(wlen/dt)
     st = obspy.read(join(folder,"*.BHZ"))
     fft_all = obspy.Stream()
@@ -166,9 +168,15 @@ def perwhiten(folder, dt, wlen, cuttime1,  cuttime2, reftime, f1,f2,f3,f4):
             raise ValueError("Half window length must be greater than zero")
         tr.write(join(folder,"%s.%s.%s.BHZ.norm" % (tr.stats.network, tr.stats.station, tr.stats.location)), "SAC")
         #----------- Whiten -----------
-        tr.data = whiten(tr.data, nft, dt, f1, f2, f3, f4)
+        (tr.data,tr.stats.delta) = whiten(tr.data, nft, dt, f1, f2, f3, f4)
         #-------write spec to array --------
         fft_all.append(tr)
+        tr1 = tr.copy()
+        tr1.data = tr.data.real
+        tr1.write(join(folder,"ft.%s.%s.%s.BHZ.norm.rl" % (tr.stats.network, tr.stats.station, tr.stats.location)), "SAC")
+        tr2 = tr.copy()
+        tr2.data = tr.data.imag
+        tr2.write(join(folder,"ft.%s.%s.%s.BHZ.norm.im" % (tr.stats.network, tr.stats.station, tr.stats.location)), "SAC")
         
     return fft_all
         
@@ -177,20 +185,22 @@ def docc(folder_name, fft_all, nt, dt, finalcut, reftime):
     if not os.path.exists(outpath):
         os.makedirs(outpath)
     ns = len(fft_all)
-    nft = fft_all[0].stats.npts
+    nts = (fft_all[0].stats.npts)
+    print(nts/2)
     lag = int(finalcut/dt)
-    mid_pos = int(nt/2)
-    tcorr = np.arange(-nt + 1, nt)
-    dn = np.where(np.abs(tcorr) <= lag)[0]
+    mid_pos = int(nts/2)
+#   tcorr = np.arange(-nts + 1, nts)
+#   dn = np.where(np.abs(tcorr) <= lag)[0]
     cor = fft_all[0].copy()
     cor.stats.delta = dt
     cor.stats.starttime = reftime
     for i in np.arange(ns-1):
         for j in np.arange(i+1,ns):
-            ccf = fftpack.ifft(fft_all[i].data*np.conj(fft_all[j].data), nft).real
-            #ccf = np.concatenate((ccf[-nt + 1:], ccf[:nt + 1]))
+            ccf = fftpack.ifft(fft_all[i].data*np.conj(fft_all[j].data), nts).real
+            #ccf = np.concatenate((ccf[-nts + 1:], ccf[:nts+ 1]))
             #cor.data = ccf[dn]
-            cor.data = shift_cut(ccf,lag)
+            cor.data = fftpack.ifftshift(ccf)[mid_pos-lag:mid_pos+lag+1]
+            #cor.data = shift_cut(ccf,lag)
             cor.stats.network = fft_all[i].stats.network
             cor.stats.station = fft_all[i].stats.station
             cor.stats.location = fft_all[i].stats.location
@@ -198,6 +208,7 @@ def docc(folder_name, fft_all, nt, dt, finalcut, reftime):
             cor.stats.sac.stlo = fft_all[i].stats.sac.stlo
             cor.stats.sac.evla = fft_all[j].stats.sac.stla
             cor.stats.sac.evlo = fft_all[j].stats.sac.stlo
+            cor.stats.sac.b = -lag
             cor.write(join(outpath, "COR_%s.%s.%s_%s.%s.%s.SAC" % 
                 (fft_all[i].stats.network,fft_all[i].stats.station,fft_all[i].stats.location,
                  fft_all[j].stats.network,fft_all[j].stats.station,fft_all[j].stats.location)),"SAC")
