@@ -207,8 +207,8 @@ def perwhiten(folder, dt, wlen, cuttime1,  cuttime2, reftime, f1,f2,f3,f4):
         '''
     return fft_all
         
-def docc(folder_name, fft_all, nt, dt, finalcut, reftime):
-    outpath = join(folder_name,"COR")
+def docc(folder_name, fft_all, nt, dt, finalcut, reftime, f2,f3):
+    outpath = join(folder_name,"%sto%s_COR" % (str(f2),str(f3)))
     if not os.path.exists(outpath):
         os.makedirs(outpath)
     ns = len(fft_all)
@@ -221,6 +221,7 @@ def docc(folder_name, fft_all, nt, dt, finalcut, reftime):
     cor = fft_all[0].copy()
     cor.stats.delta = dt
     cor.stats.starttime = reftime
+    sta_pair = []
     for i in np.arange(ns-1):
         for j in np.arange(i+1,ns):
             ccf = fftpack.ifft(fft_all[i].data*np.conj(fft_all[j].data), nts).real
@@ -235,6 +236,10 @@ def docc(folder_name, fft_all, nt, dt, finalcut, reftime):
             cor.stats.sac.evla = fft_all[j].stats.sac.stla
             cor.stats.sac.evlo = fft_all[j].stats.sac.stlo
             cor.stats.sac.b = -lag
+            sta_pair.append("%s.%s.%s_%s.%s.%s" %
+                (fft_all[i].stats.network,fft_all[i].stats.station,fft_all[i].stats.location,
+                 fft_all[j].stats.network,fft_all[j].stats.station,fft_all[j].stats.location))
             cor.write(join(outpath, "COR_%s.%s.%s_%s.%s.%s.SAC" % 
                 (fft_all[i].stats.network,fft_all[i].stats.station,fft_all[i].stats.location,
                  fft_all[j].stats.network,fft_all[j].stats.station,fft_all[j].stats.location)),"SAC")
+    return sta_pair

@@ -64,4 +64,4 @@ with open(folder_lst) as flst:
         if len(fft_all) <= 1:
             print("not enough event in folder %s" % folder_name)
             continue
-        docc(folder_name, fft_all,nt,dt,lag, reftime)
+        docc(folder_name, fft_all,nt,dt,lag, reftime,f2,f3)
