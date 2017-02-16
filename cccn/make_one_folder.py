@@ -155,7 +155,7 @@ def transf(folder, suffix, dt, ch=['Z']):
     s = ''
     for sta in stations:
         for cname in ch:
-            sacfiles = glob.glob(join(folder,"*.%s.%s.%s.*.BH%s.*.%s" % (sta[0], sta[1], sta[2], cname suffix)))
+            sacfiles = glob.glob(join(folder,"*.%s.%s.%s.BH%s.*.%s" % (sta[0], sta[1], sta[2], cname, suffix)))
             sacfile = ''
             if len(sacfiles) == 1:
                 ismerge = False
@@ -175,7 +175,7 @@ def transf(folder, suffix, dt, ch=['Z']):
             s += "interp delta %6.3f\n" % dt
             s += "transfer FROM POLEZERO SUBTYPE %s TO VEL freq 0.005 0.007 4 5\n" % (resfile)
             s += "rmean;rtr\n"
-            s += "ch kstnm %s\n" % (sta[0]+"."+sta[1]+"."+sta[2])
+            s += "ch kstnm %s\n" % (sta[0]+"."+sta[1])
             s += "w %s/%s.%s.%s.BH%s\n" % (folder, sta[0], sta[1], sta[2],cname)
     s += "q\n"
     p.communicate(s.encode())
@@ -224,7 +224,6 @@ def docc(folder_name, fft_all, nt, dt, finalcut, reftime, f2,f3):
         os.makedirs(outpath)
     ns = len(fft_all)
     nts = (fft_all[0].stats.npts)
-    print(nts/2)
     lag = int(finalcut/dt)
     mid_pos = int(nts/2)
 #   tcorr = np.arange(-nts + 1, nts)

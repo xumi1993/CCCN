@@ -59,8 +59,8 @@ with open(folder_lst) as flst:
         reftime = obspy.UTCDateTime(folder.split()[1])
         nt = int(np.floor((cuttime2 - cuttime1)/dt))
         if istransf:
-            transf(folder_name, suffix, dt)
-        fft_all = perwhiten(folder_name, dt, wlen, cuttime1, cuttime2, reftime, f1,f2,f3,f4)
+            transf(folder_name, suffix, dt,ch=["Z"])
+        fft_all = perwhiten(folder_name, dt, wlen, cuttime1, cuttime2, reftime, f1,f2,f3,f4,ch=["Z"])
         if len(fft_all) <= 1:
             print("not enough event in folder %s" % folder_name)
             continue
