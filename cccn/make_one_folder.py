@@ -234,6 +234,8 @@ def docc(folder_name, fft_all, nt, dt, finalcut, reftime, f2,f3):
     sta_pair = []
     for i in np.arange(ns-1):
         for j in np.arange(i+1,ns):
+            if fft_all[i].stats.station == fft_all[j].stats.station:
+                continue
             ccf = fftpack.ifft(fft_all[i].data*np.conj(fft_all[j].data), nts).real
             #ccf = np.concatenate((ccf[-nts + 1:], ccf[:nts+ 1]))
             #cor.data = ccf[dn]
