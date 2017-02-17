@@ -118,7 +118,7 @@ def transf_hinet(folder,suffix, dt, ch=['U']):
     stations = list(set(stations))
     os.putenv("SAC_DISPLAY_COPYRIGHT", '0')
     p = subprocess.Popen(['sac'], stdin=subprocess.PIPE)
-    s = ''
+    s = "echo off\n"
     for sta in stations:
         for cname in ch:
             sacfiles = glob.glob(join(folder,"%s.%s.%s" % (sta, cname, suffix)))
@@ -183,12 +183,16 @@ def transf(folder, suffix, dt, ch=['Z']):
 def perwhiten(folder, dt, wlen, cuttime1,  cuttime2, reftime, f1,f2,f3,f4, ch=['Z']):
     nft = int(next_pow_2((cuttime2 - cuttime1)/dt))
     nwlen = int(wlen/dt)
+    fft_all = obspy.Stream()
     scname = '['
     for cname in ch:
         scname += cname
     scname += ']'
-    st = obspy.read(join(folder,"*.BH%s" % scname))
-    fft_all = obspy.Stream()
+    try:
+        st = obspy.read(join(folder,"*.BH%s" % scname))
+    except:
+        print("can not open sacfiles in %s" % folder)
+        return fft_all
     for tr in st:
         #------- cut waveform ------ 
         cutbtime = reftime+cuttime1
