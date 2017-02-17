@@ -8,7 +8,7 @@ import obspy
 from cccn.make_one_folder import transf, perwhiten,docc
 
 def Usage():
-    print("preparation.py -f<f1/f2/f3/f4> -d<dt> -c<cut1/cut2> -l<maxlag> [-t] [-w<half-length>] [-S<suffix>] floder_lst")
+    print("preparation.py -f<f1/f2/f3/f4> -d<dt> -c<cut1/cut2> -l<maxlag> [-C<channel_list>] [-t] [-w<half-length>] [-S<suffix>] floder_lst")
 
 argv = sys.argv[1:]
 for o in argv:
@@ -17,7 +17,7 @@ for o in argv:
         break
 
 try:
-    opts,args = getopt.getopt(argv, "w:f:S:d:c:l:t")
+    opts,args = getopt.getopt(argv, "w:f:S:d:c:l:t:C:")
 except:
     print('Arguments are not found!')
     sys.exit(1)
@@ -28,6 +28,7 @@ if opts == []:
 suffix = "SAC"
 wlen = 0
 istransf = True
+ch = ['Z']
 for op, value in opts:
     if op == "-w":
         wlen = float(value)
@@ -47,6 +48,8 @@ for op, value in opts:
         lag = float(value)
     elif op == "-t":
         istransf = False
+    elif op == "-C":
+        ch = [cha for cha in value]
     else:
         Usage()
         sys.exit(1)
@@ -59,8 +62,8 @@ with open(folder_lst) as flst:
         reftime = obspy.UTCDateTime(folder.split()[1])
         nt = int(np.floor((cuttime2 - cuttime1)/dt))
         if istransf:
-            transf(folder_name, suffix, dt,ch=["Z"])
-        fft_all = perwhiten(folder_name, dt, wlen, cuttime1, cuttime2, reftime, f1,f2,f3,f4,ch=["Z"])
+            transf(folder_name, suffix, dt,ch)
+        fft_all = perwhiten(folder_name, dt, wlen, cuttime1, cuttime2, reftime, f1,f2,f3,f4,ch)
         if len(fft_all) <= 1:
             print("not enough event in folder %s" % folder_name)
             continue
