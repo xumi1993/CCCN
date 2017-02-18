@@ -21,7 +21,7 @@ for o in argv:
         break
 
 try:
-    opts,args = getopt.getopt(argv, "w:f:S:d:c:l:t:C:n:F:")
+    opts,args = getopt.getopt(argv, "w:f:S:d:c:l:tC:n:F:")
 except:
     print('Arguments are not found!')
     sys.exit(1)
