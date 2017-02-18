@@ -76,6 +76,7 @@ with open(folder_lst) as flst:
         reftime = obspy.UTCDateTime(folder.split()[1])
         nt = int(np.floor((cuttime2 - cuttime1)/dt))
         if istransf:
+            print("\ttransfering instromental reponse...")
             if dformat == "seed":
                 transf(folder_name, suffix, dt,ch=ch)
             elif dformat == "hinet":
