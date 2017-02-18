@@ -6,7 +6,10 @@ import numpy as np
 from obspy.signal.util import next_pow_2
 from scipy import fftpack
 import glob
-import matplotlib.pyplot as plt
+from multiprocessing.dummy import Pool as ThreadPool 
+from itertools import repeat
+from subprocess import Popen, PIPE
+import time
 
 def smooth(x, half_len=5,window='flat'):
     """smooth the data using a window with requested size.
@@ -112,13 +115,14 @@ def whiten(data, Nfft, delta, f1, f2, f3, f4):
     return FFTRawSign, dom
 
 def transf_hinet(folder,suffix, dt, ch=['U']):
+    global stations
     freq = 1/dt/2-0.1
     sacfiles = glob.glob(join(folder,"*."+suffix))
     stations = [basename(sac).split('.')[0]+"."+basename(sac).split('.')[1] for sac in sacfiles]
     stations = list(set(stations))
     os.putenv("SAC_DISPLAY_COPYRIGHT", '0')
-    p = subprocess.Popen(['sac'], stdin=subprocess.PIPE)
-    s = "echo off\n"
+    p = subprocess.Popen(['sac'], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    s = ""
     for sta in stations:
         for cname in ch:
             sacfiles = glob.glob(join(folder,"%s.%s.%s" % (sta, cname, suffix)))
@@ -145,6 +149,7 @@ def transf_hinet(folder,suffix, dt, ch=['U']):
     p.communicate(s.encode())
 
 def transf(folder, suffix, dt, ch=['Z']):
+    global stations
     freq = 1/dt/2-0.1
     sacfiles = glob.glob(join(folder,"*.BHZ.*"+suffix))
     stations = [basename(sac).split('.')[6]+"."+basename(sac).split('.')[7]+"."+basename(sac).split('.')[8] for sac in sacfiles]
@@ -181,6 +186,7 @@ def transf(folder, suffix, dt, ch=['Z']):
     p.communicate(s.encode())
 
 def perwhiten(folder, dt, wlen, cuttime1,  cuttime2, reftime, f1,f2,f3,f4, ch=['Z']):
+    global fft_all
     nft = int(next_pow_2((cuttime2 - cuttime1)/dt))
     nwlen = int(wlen/dt)
     fft_all = obspy.Stream()
@@ -220,9 +226,27 @@ def perwhiten(folder, dt, wlen, cuttime1,  cuttime2, reftime, f1,f2,f3,f4, ch=['
         tr2.data = tr.data.imag
         tr2.write(join(folder,"ft.%s.%s.%s.BHZ.norm.im" % (tr.stats.network, tr.stats.station, tr.stats.location)), "SAC")
         '''
-    return fft_all
-        
-def docc(folder_name, fft_all, nt, dt, finalcut, reftime, f2,f3):
+    return len(fft_all)
+
+def compute_cc(idxij, nts, mid_pos, lag, cor):
+    global fft_all,outpath
+    ccf = fftpack.ifft(fft_all[idxij[0]].data*np.conj(fft_all[idxij[1]].data), nts).real
+    cor.data = fftpack.ifftshift(ccf)[mid_pos-lag:mid_pos+lag+1]
+    cor.stats.station = fft_all[idxij[0]].stats.station
+    cor.stats.sac.stla = fft_all[idxij[0]].stats.sac.stla
+    cor.stats.sac.stlo = fft_all[idxij[0]].stats.sac.stlo
+    cor.stats.sac.kevnm = fft_all[idxij[1]].stats.station
+    cor.stats.sac.evla = fft_all[idxij[1]].stats.sac.stla
+    cor.stats.sac.evlo = fft_all[idxij[1]].stats.sac.stlo
+    cor.stats.channel = fft_all[idxij[0]].stats.channel+fft_all[idxij[1]].stats.channel
+    cor.stats.sac.b = -lag
+    cor.write(join(outpath, "COR_%s.%s_%s.%s.SAC" % 
+        (fft_all[idxij[0]].stats.station,fft_all[idxij[0]].stats.channel,
+        fft_all[idxij[1]].stats.station, fft_all[idxij[1]].stats.channel)),"SAC")
+
+def docc(folder_name, nt, dt, finalcut, reftime, f2,f3, node):
+    global fft_all, outpath
+    pool = ThreadPool(node)
     outpath = join(folder_name,"%sto%s_COR" % (str(f2),str(f3)))
     if not os.path.exists(outpath):
         os.makedirs(outpath)
@@ -236,25 +260,18 @@ def docc(folder_name, fft_all, nt, dt, finalcut, reftime, f2,f3):
     cor.stats.delta = dt
     cor.stats.starttime = reftime
     sta_pair = []
+    idx_lst = []
     for i in np.arange(ns-1):
         for j in np.arange(i+1,ns):
             if fft_all[i].stats.station == fft_all[j].stats.station:
                 continue
-            ccf = fftpack.ifft(fft_all[i].data*np.conj(fft_all[j].data), nts).real
-            #ccf = np.concatenate((ccf[-nts + 1:], ccf[:nts+ 1]))
-            #cor.data = ccf[dn]
-            cor.data = fftpack.ifftshift(ccf)[mid_pos-lag:mid_pos+lag+1]
-            cor.stats.station = fft_all[i].stats.station
-            cor.stats.sac.stla = fft_all[i].stats.sac.stla
-            cor.stats.sac.stlo = fft_all[i].stats.sac.stlo
-            cor.stats.sac.evla = fft_all[j].stats.sac.stla
-            cor.stats.sac.evlo = fft_all[j].stats.sac.stlo
-            cor.stats.channel = fft_all[i].stats.channel+fft_all[j].stats.channel
-            cor.stats.sac.b = -lag
             sta_pair.append("%s.%s_%s.%s" % 
-                    (fft_all[i].stats.station,fft_all[i].stats.channel,
-                     fft_all[j].stats.station,fft_all[j].stats.channel))
-            cor.write(join(outpath, "COR_%s.%s_%s.%s.SAC" % 
                 (fft_all[i].stats.station,fft_all[i].stats.channel,
-                fft_all[j].stats.station, fft_all[j].stats.channel)),"SAC")
+                fft_all[j].stats.station,fft_all[j].stats.channel))
+            idx_lst.append([i, j])
+    t=time.clock()
+    results = pool.starmap(compute_cc, zip(idx_lst, repeat(nts), repeat(mid_pos), repeat(lag), repeat(cor)))
+    print("%d station pair using %d node:" % (len(sta_pair), node), (time.clock()-t), "s")
+    pool.close()
+    pool.join()
     return sta_pair
