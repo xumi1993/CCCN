@@ -21,7 +21,7 @@ for o in argv:
         break
 
 try:
-    opts,args = getopt.getopt(argv, "w:f:S:d:c:l:tC:n:F:")
+    opts,args = getopt.getopt(argv, "w:f:S:d:c:l:t:C:n:")
 except:
     print('Arguments are not found!')
     sys.exit(1)
@@ -31,7 +31,7 @@ if opts == []:
 
 suffix = "SAC"
 wlen = 0
-istransf = True
+istransf = False
 ch = ['Z']
 node = 1
 dformat = "seed"
@@ -53,17 +53,16 @@ for op, value in opts:
     elif op == "-l":
         lag = float(value)
     elif op == "-t":
-        istransf = False
+        istransf = True
+        if value in ["seed", "hinet"]:
+            dformat = value
+        else:
+            print("wrong option in \"-t\" argument")
+            sys.exit(1)
     elif op == "-C":
         ch = [cha for cha in value]
     elif op == "-n":
         node = int(value)
-    elif op == "-F":
-        if value in ["seed", "hinet"]:
-            dformat = value
-        else:
-            print("wrong option in \"-F\" argument")
-            sys.exit(1)
     else:
         Usage()
         sys.exit(1)
@@ -76,16 +75,18 @@ with open(folder_lst) as flst:
         reftime = obspy.UTCDateTime(folder.split()[1])
         nt = int(np.floor((cuttime2 - cuttime1)/dt))
         if istransf:
-            print("\ttransfering instromental reponse...")
+            print("\t1st transfering instromental reponse...")
             if dformat == "seed":
                 transf(folder_name, suffix, dt,ch=ch)
             elif dformat == "hinet":
                 transf_hinet(folder_name, suffix, dt,ch=ch)
             else:
-                print("wrong option in \"-F\" argument")
+                print("wrong option in \"-F\" argument...")
                 sys.exit(1)
+        print("\t2nd perwhiten...")
         ev_num = perwhiten(folder_name, dt, wlen, cuttime1, cuttime2, reftime, f1,f2,f3,f4,ch=ch)
         if ev_num <= 1:
             print("not enough event in folder %s" % folder_name)
             continue
+        print("\t3th compute cross-correlation...")
         sta_pair = docc(folder_name ,nt,dt,lag, reftime,f2,f3, node)
