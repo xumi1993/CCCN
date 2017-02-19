@@ -9,9 +9,21 @@ import time
 from cccn.make_one_folder import transf, transf_hinet, perwhiten,docc
 
 def Usage():
-    print("preparation.py -f<f1/f2/f3/f4> -d<dt> -c<cut1/cut2> -l<maxlag>")
-    print("[-n<node>] [-C<channel_list>] [-t] [-w<half-length>] [-S<suffix>]")
-    print("[-F<seed|hinet>] floder_lst")
+    print("preparation.py -f<f1/f2/f3/f4> -d<dt> -c<cut1/cut2> -l<maxlag> [-n<node>]")
+    print("    [-C<channel_list>] [-t<seed|hinet>] [-w<half-length>] [-S<suffix>] floder_lst")
+    print("-c Cut raw waveforms from \"cut1\" to \"cut2\"")
+    print("-d Specify sample rate after downsample")
+    print("-f Specify frequence window when whitening")
+    print("-l Specify lag of cross-correlation function")
+    print("-n The number of thread at computing cross-correlation. (1 default)")
+    print("-t Format of sacfile name (\"seed\" or \"hinet\")\n"
+          "     \"seed\": 2016.001.00.00.00.0195.IC.BJT.00.BHZ.M.SAC, SAC_PZs_IC_BJT_BHZ_00\n"
+          "     \"hinet\": N.KKCH.U.SAC, N.KKCH.U.SAC_PZ")
+    print("-w Half-lengthh of time window at normlization")
+    print("-C Specify Channels. channels must be in \"Z\", \"U\", \"N\", \"E\", \"2\", \"2\"\n"
+          "     e.g., -CUEN (\"Z\" default)")
+    print("-S Specify suffix of sacfiles")
+
 
 global fft_all
 argv = sys.argv[1:]
