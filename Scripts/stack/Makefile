@@ -5,4 +5,4 @@ $(OBJ) : sacio.h
 sacio.o stack.o : sacio.h
 
 clean:
-	rm -f $(OBJ)
+	rm -f $(OBJ) ../bin/stack

@@ -156,7 +156,7 @@ def transf(folder, suffix, dt, ch=['Z']):
     stations = list(set(stations))
     stations = [[st.split('.')[0], st.split('.')[1], st.split('.')[2]] for st in stations]
     os.putenv("SAC_DISPLAY_COPYRIGHT", '0')
-    p = subprocess.Popen(['sac'], stdin=subprocess.PIPE)
+    p = subprocess.Popen(['sac'], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
     s = ''
     for sta in stations:
         for cname in ch:
@@ -171,7 +171,10 @@ def transf(folder, suffix, dt, ch=['Z']):
                     sacfile += " "+sac
             else:
                 continue
-            resfile = glob.glob(join(folder,"SAC_PZs_%s_%s_BH%s_%s" % (sta[0],sta[1],cname,sta[2])))[0]
+            try:
+                resfile = glob.glob(join(folder,"SAC_PZs_%s_%s_BH%s_%s" % (sta[0],sta[1],cname,sta[2])))[0]
+            except:
+                continue
             s += "r %s\n" % sacfile
             s += "rmean;rtr\n"
             if ismerge:

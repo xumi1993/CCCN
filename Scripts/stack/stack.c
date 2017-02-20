@@ -28,7 +28,7 @@ void str_no_void(char *ps){
 
 int main(int argc, char *argv[]){
     int i = 0, j = 0, size = 256;
-    float *data, sum[500000] = {0.}, starttime, endtime;
+    float *data, sum[500000] = {0.},*outdata, starttime, endtime;
     char* ss = (char*)malloc(size);
     FILE *fp;
     SACHEAD hd;
@@ -55,11 +55,13 @@ int main(int argc, char *argv[]){
         free(data);
     }
 
+    outdata = (float*) malloc(sizeof(float)*hd.npts);
     for ( i = 0; i < hd.npts; i ++ ){
-        data[i] = sum[i];
+        outdata[i] = sum[i];
     }
-    write_sac(argv[2],hd,data);
+    write_sac(argv[2],hd,outdata);
     fclose(fp);
+    free(outdata);
     endtime = clock();
     printf("Stacked out file %s costs %f seconds!\n",argv[2],(endtime-starttime)/CLOCKS_PER_SEC);
     return 0;
