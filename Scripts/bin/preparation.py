@@ -97,8 +97,8 @@ with open(folder_lst) as flst:
                 sys.exit(1)
         print("\t2nd perwhiten...")
         ev_num = perwhiten(folder_name, dt, wlen, cuttime1, cuttime2, reftime, f1,f2,f3,f4,ch=ch)
-        if ev_num <= 1:
-            print("not enough event in folder %s" % folder_name)
-            continue
+        #if ev_num <= 1:
+        #    print("not enough event in folder %s" % folder_name)
+        #    continue
         print("\t3th compute cross-correlation...")
         sta_pair = docc(folder_name ,nt,dt,lag, reftime,f2,f3, node)
