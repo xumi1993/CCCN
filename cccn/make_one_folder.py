@@ -169,49 +169,12 @@ def transf(folder, suffix, dt, ch=['Z']):
         seedresp = make_seedresp(folder, tr)
         tr.simulate(paz_remove=None, pre_filt=pre_filt, seedresp=seedresp)
     st.plot()
-    '''
-    for sta in stations:
-        for cname in ch:
-            sacfiles = glob.glob(join(folder,"*.%s.%s.%s.BH%s.*.%s" % (sta[0], sta[1], sta[2], cname, suffix)))
-            sacfile = ''
-            if len(sacfiles) == 1:
-                ismerge = False
-                sacfile = sacfiles[0]
-            elif len(sacfiles) > 1:
-                ismerge = True
-                for sac in sacfiles:
-                    sacfile += " "+sac
-            else:
-                continue
-            try:
-                resfile = glob.glob(join(folder,"SAC_PZs_%s_%s_BH%s_%s" % (sta[0],sta[1],cname,sta[2])))[0]
-            except:
-                continue
-            s += "r %s\n" % sacfile
-            s += "rmean;rtr\n"
-            if ismerge:
-                s += "merge g z o a\n"
-            s += "lp c %f\n" % freq
-            s += "interp delta %6.3f\n" % dt
-            s += "transfer FROM POLEZERO SUBTYPE %s TO VEL freq 0.005 0.007 4 5\n" % (resfile)
-            s += "rmean;rtr\n"
-            s += "ch kstnm %s\n" % (sta[0]+"."+sta[1])
-            s += "w %s/%s.%s.%s.BH%s\n" % (folder, sta[0], sta[1], sta[2],cname)
-    s += "q\n"
-    p.communicate(s.encode())
-'''
 
 def perwhiten(dt, wlen, cuttime1,  cuttime2, reftime, f1,f2,f3,f4):
     global fft_all, st
     nft = int(next_pow_2((cuttime2 - cuttime1)/dt))
     nwlen = int(wlen/dt)
     fft_all = obspy.Stream()
-    '''
-    scname = '['
-    for cname in ch:
-        scname += cname
-    scname += ']'
-    '''
     for tr in st:
         #------- cut waveform ------ 
         cutbtime = reftime+cuttime1
