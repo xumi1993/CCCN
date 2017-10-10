@@ -148,16 +148,28 @@ def transf_hinet(folder,suffix, dt, ch=['U']):
     s += "q\n"
     p.communicate(s.encode())
 
+def make_seedresp(folder, tr, units='VEL'):
+    if not units in ['DIS', 'VEL', 'ACC']:
+        raise ValueError("Units to return response must be in ('DIS', 'VEL' or ACC)")
+    filename=join(folder, '.'.join(['RESP', tr.stats.network, tr.stats.station, tr.stats.location, tr.stats.channel]))
+    seedresp = {'filename': filename,
+                'units': units}
+    return seedresp
+
 def transf(folder, suffix, dt, ch=['Z']):
-    global stations
-    freq = 1/dt/2-0.1
-    sacfiles = glob.glob(join(folder,"*.BHZ.*"+suffix))
-    stations = [basename(sac).split('.')[6]+"."+basename(sac).split('.')[7]+"."+basename(sac).split('.')[8] for sac in sacfiles]
-    stations = list(set(stations))
-    stations = [[st.split('.')[0], st.split('.')[1], st.split('.')[2]] for st in stations]
-    os.putenv("SAC_DISPLAY_COPYRIGHT", '0')
-    p = subprocess.Popen(['sac'], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-    s = ''
+    global st
+    pre_filt = (0.005, 0.007, 4, 5)
+    st = obspy.read(join(folder,'*.BH['+''.join(ch)+'].*.'+suffix))
+    st.detrend('linear')
+    st.detrend('constant')
+    st.merge(1, 0)
+    sample_rate = 1/dt
+    st.resample(sample_rate)
+    for tr in st:
+        seedresp = make_seedresp(folder, tr)
+        tr.simulate(paz_remove=None, pre_filt=pre_filt, seedresp=seedresp)
+    st.plot()
+    '''
     for sta in stations:
         for cname in ch:
             sacfiles = glob.glob(join(folder,"*.%s.%s.%s.BH%s.*.%s" % (sta[0], sta[1], sta[2], cname, suffix)))
@@ -187,21 +199,19 @@ def transf(folder, suffix, dt, ch=['Z']):
             s += "w %s/%s.%s.%s.BH%s\n" % (folder, sta[0], sta[1], sta[2],cname)
     s += "q\n"
     p.communicate(s.encode())
+'''
 
-def perwhiten(folder, dt, wlen, cuttime1,  cuttime2, reftime, f1,f2,f3,f4, ch=['Z']):
-    global fft_all
+def perwhiten(dt, wlen, cuttime1,  cuttime2, reftime, f1,f2,f3,f4):
+    global fft_all, st
     nft = int(next_pow_2((cuttime2 - cuttime1)/dt))
     nwlen = int(wlen/dt)
     fft_all = obspy.Stream()
+    '''
     scname = '['
     for cname in ch:
         scname += cname
     scname += ']'
-    try:
-        st = obspy.read(join(folder,"*.BH%s" % scname))
-    except:
-        print("can not open sacfiles in %s" % folder)
-        return fft_all
+    '''
     for tr in st:
         #------- cut waveform ------ 
         cutbtime = reftime+cuttime1
@@ -278,3 +288,8 @@ def docc(folder_name, nt, dt, finalcut, reftime, f2,f3, node):
     pool.close()
     pool.join()
     return sta_pair
+
+if __name__ == '__main__':
+    folder = '/home/xumj/CCCN/example/2016.01.01'
+    suf = 'SAC'
+    transf(folder,suf,0.01)
