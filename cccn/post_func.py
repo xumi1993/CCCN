@@ -2,19 +2,18 @@ import obspy
 import numpy as np
 import os
 from os.path import join
+import pyasdf
 
-def stack_all(path,sta_pair):
+def stack_all(path):
+    ds = pyasdf.ASDFDataSet(path)
+    sta = ds.waveforms.list()[0]
+    tags = [tag for tag in ds.waveforms[sta].get_waveform_tags()]
     st_all = obspy.Stream()
-    for each_pair in sta_pair:
-        st = obspy.read(join(path,"*/COR","COR_"+each_pair+".SAC"))
-        ns = len(st)
-        npts = st[0].stats.npts
-        data = np.zeros([ns, npts])
-        for i in range(ns):
-            data[i,:] = st[i].data
-        tmp_tr = st[0].copy()
-        tmp_tr.data = data.sum(axis=0)
-        st_all.append(tmp_tr)
+    for tag in tags:
+        st_all += ds.waveforms[sta][tag]
+    st_all.stack()
+    st_all.normalize()
+    st_all[0].stats.starttime =  ds.waveforms[sta][tags[0]][0].stats.starttime
     return st_all
 
 def symmetrize(st_all):

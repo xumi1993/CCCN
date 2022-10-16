@@ -2,15 +2,16 @@
 from setuptools import find_packages, setup
 packages=find_packages()
 
-VERSION = "1.0"
+VERSION = "1.1"
 setup(name='cccn',
       version=VERSION,
       author='Mijian Xu',
       author_email='gomijianxu@gmail.com',
-      license='GNU',
+      license='GPLv3',
       packages=find_packages(),
       package_dir={'cccn': 'cccn'},
-      install_requires=['obspy'],
-      include_package_data=True,
+      install_requires=['obspy',
+                        'pyasdf'],
+      include_package_data=False,
       zip_safe=False
       )
