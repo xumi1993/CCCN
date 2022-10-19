@@ -22,20 +22,30 @@ class CrossCorrelation():
     
     def read_sac(self):
         if exists(self.para.datapath):
-            self.rawst = obspy.read(join(self.para.datapath,'*.'+self.para.suffix))
+            fname = join(self.para.datapath,'*.'+self.para.suffix)
         else:
-            self.rawst = obspy.read(self.para.datapath)
+            fname = self.para.datapath
+        try:
+            self.rawst = obspy.read(fname)
+        except:
+            self.rawst = obspy.Stream()
+            return False
         if self.para.target_dt is None:
             self.dt = self.rawst[0].stats.delta
         else:
             self.rawst.resample(1/self.para.target_dt, no_filter=False)
             self.dt = self.para.target_dt
+        return True
 
     def perwhiten(self):
+        if not self.rawst:
+            return
         if self.para.reftime == 'day':
             self.reftime = obspy.UTCDateTime(self.rawst[0].stats.starttime.date)
         elif self.para.reftime == 'hour':
             self.reftime = obspy.UTCDateTime(self.rawst[0].stats.starttime.strftime('%Y%m%d%H'))
+        elif self.para.reftime == 'minute':
+            self.reftime = obspy.UTCDateTime(self.rawst[0].stats.starttime.strftime('%Y%m%d%H%M'))
         self.nft = int(next_pow_2((self.para.timeend - self.para.timestart)/self.dt))
         self.fftst = self.rawst.copy()
         for tr in self.fftst:
@@ -92,6 +102,8 @@ class CrossCorrelation():
             ds.add_waveforms(cor, tag=new_tags)     
 
     def docc(self):
+        if not self.rawst:
+            return
         pool = ThreadPool(self.para.nnode)
         if not os.path.exists(self.para.outpath):
             os.makedirs(self.para.outpath)
