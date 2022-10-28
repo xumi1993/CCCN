@@ -3,7 +3,11 @@ import os
 from os.path import join, exists
 import numpy as np
 from obspy.signal.util import next_pow_2
+from obspy.core.inventory import Inventory, Network, Station, Channel
 from scipy import fftpack
+from obspy.core.event.event import Event
+from obspy.core.event.origin import Origin
+from obspy.core.event.resourceid import ResourceIdentifier
 from multiprocessing import Pool as ThreadPool 
 from itertools import repeat
 from .util import *
@@ -11,6 +15,53 @@ from .para import Para
 import time
 import pyasdf
 import glob
+
+
+def create_station_inv(network, station, stla, stlo, stel=0.0, dt=1):
+    inv = Inventory(
+        # We'll add networks later.
+        networks=[],
+        # The source should be the id whoever create the file.
+        source="{}.{}".format(network, station))
+    net = Network(
+        # This is the network code according to the SEED standard.
+        code=network,
+        # A list of stations. We'll add one later.
+        stations=[])
+    sta = Station(
+        code=station,
+        latitude=stla,
+        longitude=stlo,
+        elevation=stel)
+    cha = Channel(
+        # This is the channel code according to the SEED standard.
+        code="Z",
+        # This is the location code according to the SEED standard.
+        location_code="",
+        # Note that these coordinates can differ from the station coordinates.
+        latitude=stla,
+        longitude=stlo,
+        elevation=0.0,
+        depth=0.0,
+        azimuth=0.0,
+        dip=-90.0,
+        sample_rate=1/dt)
+    sta.channels.append(cha)
+    net.stations.append(sta)
+    inv.networks.append(net)
+    return inv
+
+
+def create_quake(network, station, evla, evlo, evel=0.0):
+    ori = Origin(longitude=evlo,
+                latitude=evla,
+                depth=-evel,
+                # comments='{}.{}'.format(network, station),
+                )
+    evt = Event(resource_id=ResourceIdentifier('{}.{}'.format(network, station)),
+                origins=[])
+    evt.origins.append(ori)
+    return evt            
 
 
 class CrossCorrelation():
@@ -94,7 +145,19 @@ class CrossCorrelation():
         ff = join(self.para.outpath, 'COR_{}_{}.h5'.format(stapair, cor.stats.channel))
         if not os.path.isfile(ff):
             with pyasdf.ASDFDataSet(ff,mpi=False,compression="gzip-3",mode='w') as ds:
-                pass
+                inv = create_station_inv(cor.stats.network, cor.stats.station,
+                                         self.fftst[idxij[1]].stats.sac.stla,
+                                         self.fftst[idxij[1]].stats.sac.stlo,
+                                        #  self.fftst[idxij[1]].stats.sac.stel,
+                                         dt=self.fftst[idxij[1]].stats.delta)
+                quake = create_quake(self.fftst[idxij[0]].stats.network,
+                                     self.fftst[idxij[0]].stats.station,
+                                     self.fftst[idxij[0]].stats.sac.stla,
+                                     self.fftst[idxij[0]].stats.sac.stlo,
+                                    #  self.fftst[idxij[0]].stats.sac.stel,
+                                     )
+                ds.add_stationxml(inv)
+                ds.add_quakeml(quake)
         with pyasdf.ASDFDataSet(ff,mpi=False,compression="gzip-3",mode='a') as ds:
             # try:ds.add_stationxml(inv1) 
             # except Exception: pass 
