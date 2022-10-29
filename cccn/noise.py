@@ -17,7 +17,7 @@ import pyasdf
 import glob
 
 
-def create_station_inv(network, station, stla, stlo, stel=0.0, dt=1):
+def create_station_inv(network, station, stla, stlo, channel, stel=0.0, dt=1):
     inv = Inventory(
         # We'll add networks later.
         networks=[],
@@ -35,13 +35,13 @@ def create_station_inv(network, station, stla, stlo, stel=0.0, dt=1):
         elevation=stel)
     cha = Channel(
         # This is the channel code according to the SEED standard.
-        code="Z",
+        code=channel,
         # This is the location code according to the SEED standard.
         location_code="",
         # Note that these coordinates can differ from the station coordinates.
         latitude=stla,
         longitude=stlo,
-        elevation=0.0,
+        elevation=stel,
         depth=0.0,
         azimuth=0.0,
         dip=-90.0,
@@ -145,17 +145,25 @@ class CrossCorrelation():
         ff = join(self.para.outpath, 'COR_{}_{}.h5'.format(stapair, cor.stats.channel))
         if not os.path.isfile(ff):
             with pyasdf.ASDFDataSet(ff,mpi=False,compression="gzip-3",mode='w') as ds:
+                if hasattr( self.fftst[idxij[1]].stats.sac, 'stel'):
+                    stel = self.fftst[idxij[1]].stats.sac.stel
+                else:
+                    stel = 0.0
+                if hasattr(self.fftst[idxij[0]].stats.sac, 'stel'):
+                    evel = self.fftst[idxij[0]].stats.sac.stel
+                else:
+                    evel = 0.0
                 inv = create_station_inv(cor.stats.network, cor.stats.station,
                                          self.fftst[idxij[1]].stats.sac.stla,
                                          self.fftst[idxij[1]].stats.sac.stlo,
-                                        #  self.fftst[idxij[1]].stats.sac.stel,
+                                         cor.stats.channel,
+                                         stel,
                                          dt=self.fftst[idxij[1]].stats.delta)
                 quake = create_quake(self.fftst[idxij[0]].stats.network,
                                      self.fftst[idxij[0]].stats.station,
                                      self.fftst[idxij[0]].stats.sac.stla,
                                      self.fftst[idxij[0]].stats.sac.stlo,
-                                    #  self.fftst[idxij[0]].stats.sac.stel,
-                                     )
+                                     evel)
                 ds.add_stationxml(inv)
                 ds.add_quakeml(quake)
         with pyasdf.ASDFDataSet(ff,mpi=False,compression="gzip-3",mode='a') as ds:
