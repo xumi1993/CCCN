@@ -54,9 +54,9 @@ class PostProcForNoise:
         """
         if not hasattr(self, 'stack_st'):
             raise ValueError('Please stack CCF first')
-        fname = '{}_{}_{}_{}'.format(
+        fname = '{}_{}-{}_{}'.format(
                 self.stack_st[0].stats.channel,
-                self.stname, self.evname, len(self.ccfstream))
+                self.evname, self.stname, len(self.ccfstream))
         if format.lower() == 'sac':
             self.stack_st[0].write(join(outpath, '{}.sac'.format(fname)))
         elif format.lower() == 'txt':
@@ -64,6 +64,9 @@ class PostProcForNoise:
             times = np.arange(mid_pos)*self.stack_st[0].stats.delta
             ccf1 = np.flip(self.stack_st[0].data[0:mid_pos])
             ccf2 = self.stack_st[0].data[mid_pos+1:]
+            zeroamp = (self.stack_st[0].data[mid_pos-1:mid_pos+2])/3
+            ccf1[0] = zeroamp
+            ccf2[0] = zeroamp
             data = np.zeros([mid_pos+2, 3])
             data[0] = self.stlo, self.stla, self.stel
             data[1] = self.evlo, self.evla, self.evel
