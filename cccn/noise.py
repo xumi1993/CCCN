@@ -97,13 +97,16 @@ class CrossCorrelation():
             self.reftime = obspy.UTCDateTime(self.rawst[0].stats.starttime.strftime('%Y%m%d%H'))
         elif self.para.reftime == 'minute':
             self.reftime = obspy.UTCDateTime(self.rawst[0].stats.starttime.strftime('%Y%m%d%H%M'))
-        self.nft = int(next_pow_2((self.para.timeend - self.para.timestart)/self.dt))
+        timestart = self.para.timeduration*self.para.cut_precentatge
+        timeend =  self.para.timeduration*(1-self.para.cut_precentatge)
+        self.nft = int(next_pow_2((timeend-timestart)/self.dt))
         self.fftst = self.rawst.copy()
         for tr in self.fftst:
             #------- cut waveform ------ 
-            cutbtime = self.reftime+self.para.timestart
-            cutetime = self.reftime+self.para.timeend
+            cutbtime = self.reftime+timestart
+            cutetime = self.reftime+timeend
             if tr.stats.starttime > cutbtime or tr.stats.endtime < cutetime:
+                self.fftst.remove(tr)
                 continue
             tr.trim(cutbtime, cutetime)
             tr.detrend('linear')

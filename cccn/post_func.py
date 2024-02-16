@@ -2,6 +2,7 @@ import obspy
 import numpy as np
 from obspy.io.sac import SACTrace
 from obspy.core.util.attribdict import AttribDict
+from obspy.geodetics import gps2dist_azimuth
 from os.path import join
 import pyasdf
 
@@ -39,6 +40,8 @@ class PostProcForNoise:
             sacheader['kevnm'] = self.evname
             sacheader['evla'] = self.evla
             sacheader['evlo'] = self.evlo
+            dis, _, _ = gps2dist_azimuth(self.evla, self.evlo, self.stla, self.stlo)
+            sacheader['dist'] = dis/1000
             self.stack_st[0].stats.sac = AttribDict(sacheader)
         return self.stack_st
 
