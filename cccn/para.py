@@ -5,8 +5,8 @@ class Para():
         self.freqmin = 0.02
         self.freqmax = 0.2
         self.nsmooth = 10
-        self.timestart = 800
-        self.timeend = 85600
+        self.timeduration = 900
+        self.cut_precentatge = 0.01
         self.suffix = 'SAC'
         self.target_dt = None
         self.reftime = 'day'
