@@ -127,6 +127,7 @@ class CrossCorrelation():
                 self.reftime = obspy.UTCDateTime(self.rawst[0].stats.starttime.strftime('%Y%m%d%H'))
             elif self.para.reftime == 'minute':
                 self.reftime = obspy.UTCDateTime(self.rawst[0].stats.starttime.strftime('%Y%m%d%H%M'))
+            print(self.rawst)
             timestart = self.para.timeduration*self.para.cut_precentatge
             timeend =  self.para.timeduration*(1-self.para.cut_precentatge)
             self.nft = int(next_pow_2((timeend-timestart)/self.dt))
@@ -180,13 +181,15 @@ class CrossCorrelation():
         nlag = int(self.para.maxlag/self.dt)
         for i, idxij in enumerate(self.idxij):
             if i % self.mpi.world_size == self.mpi.world_rank:
+                print(f'{self.mpi.world_rank}: Computing {i+1}/{len(self.idxij)}')
                 ccf = fftpack.ifft(self.fftarr[idxij[0]]*np.conj(self.fftarr[idxij[1]]), self.nft).real
                 ccf = fftpack.ifftshift(ccf)[mid_pos-nlag:mid_pos+nlag+1]
                 channel = self.channel[idxij[0]][-1]+self.channel[idxij[1]][-1]
-                cor = SACTrace()
-                cor.data = ccf
+                cor = SACTrace(data=ccf)
                 cor.kcmpnm = channel
-                cor.kevnm = f'{self.network[idxij[0]]}.{self.station[idxij[0]]}'
+                cor.kevnm = f'{self.network[idxij[0]]}_{self.station[idxij[0]]}'
+                cor.knetwk = self.network[idxij[1]]
+                cor.kstnm = self.station[idxij[1]]
                 try:
                     cor.stla = self.staloc[idxij[1]][0]
                     cor.stlo = self.staloc[idxij[1]][1]
@@ -194,12 +197,14 @@ class CrossCorrelation():
                     cor.evlo = self.staloc[idxij[0]][1]
                 except:
                     pass
-                cor.b = -self.para.maxlag
+
                 cor.delta = self.dt
+                cor.b = -self.para.maxlag
                 cor_tr = cor.to_obspy_trace()
+                cor_tr.stats.npts = cor.npts
                 cor_tr.stats.starttime = self.reftime
-                sta_pair = '{}_{}'.format(f'{self.network[idxij[0]]}.{self.station[idxij[0]]}',
-                                          f'{self.network[idxij[1]]}.{self.station[idxij[1]]}')
+                sta_pair = '{}_{}'.format(f'{self.network[idxij[0]]}_{self.station[idxij[0]]}',
+                                          f'{self.network[idxij[1]]}_{self.station[idxij[1]]}')
                 ff = join('COR_{}_{}.h5'.format(sta_pair, channel))
                 self.create_dataset(ff, idxij)
                 self.write_cc(ff, cor_tr)
