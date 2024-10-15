@@ -1,3 +1,5 @@
+import yaml
+
 class Para():
     def __init__(self) -> None:
         self.datapath = './'
@@ -24,4 +26,13 @@ class Para():
         mympi.bcast(self.target_dt)
         mympi.bcast(self.reftime)
         mympi.bcast(self.maxlag)
+
+    @classmethod
+    def read(cls, filename:str):
+        with open(filename, 'r') as f:
+            input_para = yaml.safe_load(f)
+        para = cls()
+        for key in input_para:
+            setattr(para, key, input_para[key])
+        return para
         

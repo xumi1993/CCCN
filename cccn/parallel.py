@@ -10,6 +10,9 @@ class MyMPI(object):
         self.node_comm = self.world_comm.Split_type(MPI.COMM_TYPE_SHARED)
         self.node_rank = self.node_comm.Get_rank()
         self.node_size = self.node_comm.Get_size()
+        self.node_rank_map = np.zeros(self.world_size, dtype=int)
+        self.node_rank_map[self.world_rank] = self.node_rank
+        self.node_rank_map = self.sum_all_all(self.node_rank_map)
 
     def prepare_shm(self, shape:list, dtype):
         itemsize = np.dtype(dtype).itemsize
@@ -23,6 +26,14 @@ class MyMPI(object):
         win.Fence()
         return buffer, win
     
+    def sync_from_main(self, data):
+        if (self.world_rank == 0):
+            for i in range(1, self.world_size):
+                if self.node_rank_map[i] == 0:
+                    self.send(data, dest=i)
+        elif self.node_rank == 0:
+            data = self.recv(source=0)
+    
     def finalize_mpi(self):
         self.world_comm.Barrier()
         self.world_comm.Free()
@@ -31,7 +42,7 @@ class MyMPI(object):
         self.world_comm.Barrier()
 
     def bcast(self, data):
-        self.world_comm.Bcast(data, root=0)
+        return self.world_comm.bcast(data, root=0)
 
     def sum_all(self, data):
         return self.world_comm.reduce(data, op=MPI.SUM, root=0)
