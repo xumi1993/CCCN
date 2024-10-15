@@ -2,7 +2,7 @@
 from setuptools import find_packages, setup
 packages=find_packages()
 
-VERSION = "1.1"
+VERSION = "1.2"
 setup(name='cccn',
       version=VERSION,
       author='Mijian Xu',

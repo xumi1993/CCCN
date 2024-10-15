@@ -11,4 +11,17 @@ class Para():
         self.target_dt = None
         self.reftime = 'day'
         self.maxlag = 500
-        self.nnode = 1
+
+    def bcast(self, mympi):
+        mympi.bcast(self.datapath)
+        mympi.bcast(self.outpath)
+        mympi.bcast(self.freqmin)
+        mympi.bcast(self.freqmax)
+        mympi.bcast(self.nsmooth)
+        mympi.bcast(self.timeduration)
+        mympi.bcast(self.cut_precentatge)
+        mympi.bcast(self.suffix)
+        mympi.bcast(self.target_dt)
+        mympi.bcast(self.reftime)
+        mympi.bcast(self.maxlag)
+        

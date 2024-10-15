@@ -15,6 +15,7 @@ from .para import Para
 import time
 import pyasdf
 import glob
+from .parallel import MyMPI
 
 
 def create_station_inv(network, station, stla, stlo, channel, stel=0.0, dt=1):
@@ -70,63 +71,86 @@ class CrossCorrelation():
             self.para = Para()
         else:
             self.para = para
+        self.mpi = MyMPI()
+        self.rawst = obspy.Stream()
+        self.para.bcast(self.mpi)
     
     def read_sac(self):
-        if exists(self.para.datapath):
-            fname = join(self.para.datapath,'*.'+self.para.suffix)
-        else:
-            fname = self.para.datapath
-        try:
-            self.rawst = obspy.read(fname)
-        except:
-            self.rawst = obspy.Stream()
-            return False
-        if self.para.target_dt is None:
-            self.dt = self.rawst[0].stats.delta
-        else:
-            self.rawst.resample(1/self.para.target_dt, no_filter=False)
-            self.dt = self.para.target_dt
+        if self.mpi.world_rank == 0:
+            if exists(self.para.datapath):
+                fname = join(self.para.datapath,'*.'+self.para.suffix)
+            else:
+                fname = self.para.datapath
+            try:
+                self.rawst = obspy.read(fname)
+            except:
+                return False
+            if self.para.target_dt is None:
+                self.dt = self.rawst[0].stats.delta
+            else:
+                self.dt = self.para.target_dt
+                self.rawst.resample(1/self.para.target_dt, no_filter=False)
+        
+        self.mpi.bcast(self.dt)
+        # self.mpi.bcast(ntrace)
+        # for i in range(ntrace):
+        #     if i % self.mpi.world_size == self.mpi.world_rank:
+        #         self.rawst.append(rawst[i])
+        # self.ntr_loc = len(self.rawst)
+
         return True
 
     def perwhiten(self):
-        if not self.rawst:
-            return
-        if self.para.reftime == 'day':
-            self.reftime = obspy.UTCDateTime(self.rawst[0].stats.starttime.date)
-        elif self.para.reftime == 'hour':
-            self.reftime = obspy.UTCDateTime(self.rawst[0].stats.starttime.strftime('%Y%m%d%H'))
-        elif self.para.reftime == 'minute':
-            self.reftime = obspy.UTCDateTime(self.rawst[0].stats.starttime.strftime('%Y%m%d%H%M'))
-        timestart = self.para.timeduration*self.para.cut_precentatge
-        timeend =  self.para.timeduration*(1-self.para.cut_precentatge)
-        self.nft = int(next_pow_2((timeend-timestart)/self.dt))
-        self.fftst = self.rawst.copy()
-        for tr in self.fftst:
-            #------- cut waveform ------ 
-            cutbtime = self.reftime+timestart
-            cutetime = self.reftime+timeend
-            if tr.stats.starttime > cutbtime or tr.stats.endtime < cutetime:
-                self.fftst.remove(tr)
-                continue
-            tr.trim(cutbtime, cutetime)
-            tr.detrend('linear')
-            tr.detrend('constant')
-            #----------normalize----------
-            if self.para.nsmooth == 0:
-                tr.data /= np.abs(tr.data)
-            elif self.para.nsmooth > 0:
-                tr.data /= smooth(np.abs(tr.data),half_len=self.para.nsmooth)
-            else:
-                raise ValueError("Half window length must be greater than zero")
-            #tr.write(join(folder,"%s.%s.%s.BHZ.norm" % (tr.stats.network, tr.stats.station, tr.stats.location)), "SAC")
-            #----------- Whiten -----------
-            f1 = 1/(1.5*(1/self.para.freqmin))
-            f4 = 1/(0.75*(1/self.para.freqmax))
-            (tr.data,tr.stats.delta) = whiten(tr.data, self.nft, self.dt, f1, self.para.freqmin, self.para.freqmax, f4)
+        if self.mpi.world_rank == 0:
+            if not self.rawst:
+                return
+            if self.para.reftime == 'day':
+                self.reftime = obspy.UTCDateTime(self.rawst[0].stats.starttime.date)
+            elif self.para.reftime == 'hour':
+                self.reftime = obspy.UTCDateTime(self.rawst[0].stats.starttime.strftime('%Y%m%d%H'))
+            elif self.para.reftime == 'minute':
+                self.reftime = obspy.UTCDateTime(self.rawst[0].stats.starttime.strftime('%Y%m%d%H%M'))
+            timestart = self.para.timeduration*self.para.cut_precentatge
+            timeend =  self.para.timeduration*(1-self.para.cut_precentatge)
+            self.nft = int(next_pow_2((timeend-timestart)/self.dt))
+            fftst = self.rawst.copy()
+            for tr in fftst:
+                #------- cut waveform ------ 
+                cutbtime = self.reftime+timestart
+                cutetime = self.reftime+timeend
+                if tr.stats.starttime > cutbtime or tr.stats.endtime < cutetime:
+                    self.rawst.remove(tr)
+                    continue
+                tr.trim(cutbtime, cutetime)
+                tr.detrend('linear')
+                tr.detrend('constant')
+                #----------normalize----------
+                if self.para.nsmooth == 0:
+                    tr.data /= np.abs(tr.data)
+                elif self.para.nsmooth > 0:
+                    tr.data /= smooth(np.abs(tr.data),half_len=self.para.nsmooth)
+                else:
+                    raise ValueError("Half window length must be greater than zero")
+                #tr.write(join(folder,"%s.%s.%s.BHZ.norm" % (tr.stats.network, tr.stats.station, tr.stats.location)), "SAC")
+                #----------- Whiten -----------
+                f1 = 1/(1.5*(1/self.para.freqmin))
+                f4 = 1/(0.75*(1/self.para.freqmax))
+                (tr.data,tr.stats.delta) = whiten(tr.data, self.nft, self.dt, f1, self.para.freqmin, self.para.freqmax, f4)
+            self.ntr = len(fftst)
+
+        self.df = 1/self.dt/self.nft
+        self.mpi.bcast(self.nft)
+        self.fftarr, self.fft_win = self.mpi.prepare_shm([self.ntr, self.nft], np.complex128)
+        if self.mpi.world_rank == 0:
+            for i, tr in enumerate(fftst):
+                self.fftarr[i] = tr.data
+        self.mpi.bcast(self.nft)
+        self.mpi.bcast(self.reftime)
 
     def clean(self):
-        for ff in glob.glob(join(self.para.outpath, '*.h5')):
-            os.remove(ff)
+        if self.mpi.world_rank == 0:
+            for ff in glob.glob(join(self.para.outpath, '*.h5')):
+                os.remove(ff)
 
     def compute_cc(self, idxij, stapair, nts, mid_pos, lag, cor):
         ccf = fftpack.ifft(self.fftst[idxij[0]].data*np.conj(self.fftst[idxij[1]].data), nts).real
