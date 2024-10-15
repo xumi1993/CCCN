@@ -15,6 +15,7 @@ import time
 import pyasdf
 import glob
 from .parallel import MyMPI
+from .logger import Logger
 
 
 def create_station_inv(network, station, stla, stlo, channel, stel=0.0, dt=1):
@@ -65,8 +66,9 @@ def create_quake(network, station, evla, evlo, evel=0.0):
 
 
 class CrossCorrelation():
-    def __init__(self, para=None) -> None:
+    def __init__(self, para=None, level='INFO') -> None:
         self.mpi = MyMPI()
+        self.logger = Logger('CCCN', level=level).get_logger()
         if para is None:
             self.para = Para()
         else:
@@ -80,6 +82,7 @@ class CrossCorrelation():
     
     def read_sac(self):
         if self.mpi.world_rank == 0:
+            self.logger.info(f'Reading SAC files in {self.para.datapath}')
             if exists(self.para.datapath):
                 fname = join(self.para.datapath,'*.'+self.para.suffix)
             else:
@@ -127,12 +130,12 @@ class CrossCorrelation():
                 self.reftime = obspy.UTCDateTime(self.rawst[0].stats.starttime.strftime('%Y%m%d%H'))
             elif self.para.reftime == 'minute':
                 self.reftime = obspy.UTCDateTime(self.rawst[0].stats.starttime.strftime('%Y%m%d%H%M'))
-            print(self.rawst)
             timestart = self.para.timeduration*self.para.cut_precentatge
             timeend =  self.para.timeduration*(1-self.para.cut_precentatge)
             self.nft = int(next_pow_2((timeend-timestart)/self.dt))
             fftst = self.rawst.copy()
             for tr in fftst:
+                self.logger.info(f'Pre-processing {tr.stats.network}_{tr.stats.station}_{tr.stats.channel}')
                 #------- cut waveform ------ 
                 cutbtime = self.reftime+timestart
                 cutetime = self.reftime+timeend
@@ -181,10 +184,12 @@ class CrossCorrelation():
         nlag = int(self.para.maxlag/self.dt)
         for i, idxij in enumerate(self.idxij):
             if i % self.mpi.world_size == self.mpi.world_rank:
-                print(f'{self.mpi.world_rank}: Computing {i+1}/{len(self.idxij)}')
+                channel = self.channel[idxij[0]][-1]+self.channel[idxij[1]][-1]
+                sta_pair = '{}_{}'.format(f'{self.network[idxij[0]]}_{self.station[idxij[0]]}',
+                                          f'{self.network[idxij[1]]}_{self.station[idxij[1]]}')
+                self.logger.info(f'Computing cross-correlation between {sta_pair}')
                 ccf = fftpack.ifft(self.fftarr[idxij[0]]*np.conj(self.fftarr[idxij[1]]), self.nft).real
                 ccf = fftpack.ifftshift(ccf)[mid_pos-nlag:mid_pos+nlag+1]
-                channel = self.channel[idxij[0]][-1]+self.channel[idxij[1]][-1]
                 cor = SACTrace(data=ccf)
                 cor.kcmpnm = channel
                 cor.kevnm = f'{self.network[idxij[0]]}_{self.station[idxij[0]]}'
@@ -203,8 +208,6 @@ class CrossCorrelation():
                 cor_tr = cor.to_obspy_trace()
                 cor_tr.stats.npts = cor.npts
                 cor_tr.stats.starttime = self.reftime
-                sta_pair = '{}_{}'.format(f'{self.network[idxij[0]]}_{self.station[idxij[0]]}',
-                                          f'{self.network[idxij[1]]}_{self.station[idxij[1]]}')
                 ff = join('COR_{}_{}.h5'.format(sta_pair, channel))
                 self.create_dataset(ff, idxij)
                 self.write_cc(ff, cor_tr)
@@ -234,60 +237,11 @@ class CrossCorrelation():
         with pyasdf.ASDFDataSet(fname, mpi=False,compression="gzip-3",mode='a') as ds:
             new_tags = self.reftime.strftime('%Y%m%d%H%M%S')
             ds.add_waveforms(tr, tag=new_tags)  
-    
 
     def clean(self):
         if self.mpi.world_rank == 0:
             for ff in glob.glob(join(self.para.outpath, '*.h5')):
                 os.remove(ff)
-
-    # def compute_cc(self, idxij, stapair, nts, mid_pos, lag, cor):
-    #     ccf = fftpack.ifft(self.fftst[idxij[0]].data*np.conj(self.fftst[idxij[1]].data), nts).real
-    #     cor.data = fftpack.ifftshift(ccf)[mid_pos-lag:mid_pos+lag+1]
-    #     cor.stats.network = self.fftst[idxij[1]].stats.network
-    #     cor.stats.station = self.fftst[idxij[1]].stats.station
-    #     cor.stats.sac.kevnm = self.fftst[idxij[0]].stats.station
-    #     cor.stats.channel = self.fftst[idxij[0]].stats.channel[-1]+self.fftst[idxij[1]].stats.channel[-1]
-    #     try:
-    #         cor.stats.sac.stla = self.fftst[idxij[1]].stats.sac.stla
-    #         cor.stats.sac.stlo = self.fftst[idxij[1]].stats.sac.stlo
-    #         cor.stats.sac.evla = self.fftst[idxij[0]].stats.sac.stla
-    #         cor.stats.sac.evlo = self.fftst[idxij[0]].stats.sac.stlo
-    #     except:
-    #         pass
-    #     cor.stats.sac.b = -self.para.maxlag
-    #     cor.stats.delta = self.dt
-    #     cor.stats.starttime = self.reftime
-    #     ff = join(self.para.outpath, 'COR_{}_{}.h5'.format(stapair, cor.stats.channel))
-    #     if not os.path.isfile(ff):
-    #         with pyasdf.ASDFDataSet(ff,mpi=False,compression="gzip-3",mode='w') as ds:
-    #             if hasattr( self.fftst[idxij[1]].stats.sac, 'stel'):
-    #                 stel = self.fftst[idxij[1]].stats.sac.stel
-    #             else:
-    #                 stel = 0.0
-    #             if hasattr(self.fftst[idxij[0]].stats.sac, 'stel'):
-    #                 evel = self.fftst[idxij[0]].stats.sac.stel
-    #             else:
-    #                 evel = 0.0
-    #             inv = create_station_inv(cor.stats.network, cor.stats.station,
-    #                                      self.fftst[idxij[1]].stats.sac.stla,
-    #                                      self.fftst[idxij[1]].stats.sac.stlo,
-    #                                      cor.stats.channel,
-    #                                      stel,
-    #                                      dt=self.fftst[idxij[1]].stats.delta)
-    #             quake = create_quake(self.fftst[idxij[0]].stats.network,
-    #                                  self.fftst[idxij[0]].stats.station,
-    #                                  self.fftst[idxij[0]].stats.sac.stla,
-    #                                  self.fftst[idxij[0]].stats.sac.stlo,
-    #                                  evel)
-    #             ds.add_stationxml(inv)
-    #             ds.add_quakeml(quake)
-    #     with pyasdf.ASDFDataSet(ff,mpi=False,compression="gzip-3",mode='a') as ds:
-    #         # try:ds.add_stationxml(inv1) 
-    #         # except Exception: pass 
-    #         new_tags = self.reftime.strftime('%Y%m%d%H%M%S')
-    #         ds.add_waveforms(cor, tag=new_tags)     
-
 
 
 if __name__ == '__main__':

@@ -8,7 +8,8 @@ def main():
     for path in ['dataSAC/2008.010', 'dataSAC/2008.011']:
         cc.para.datapath=path
         cc.para.suffix = 'sac'
-        cc.para.target_dt = 1
+        cc.para.timeduration = 86400
+        cc.para.target_dt = 0.1
         cc.read_sac()
         cc.perwhiten()
         cc.run_cc()

@@ -67,7 +67,7 @@ class PostProcForNoise:
             times = np.arange(mid_pos)*self.stack_st[0].stats.delta
             ccf1 = np.flip(self.stack_st[0].data[0:mid_pos])
             ccf2 = self.stack_st[0].data[mid_pos+1:]
-            zeroamp = (self.stack_st[0].data[mid_pos-1:mid_pos+2])/3
+            zeroamp = np.sum(self.stack_st[0].data[mid_pos-1:mid_pos+2])/3
             ccf1[0] = zeroamp
             ccf2[0] = zeroamp
             data = np.zeros([mid_pos+2, 3])
