@@ -45,7 +45,7 @@ class PostProcForNoise:
             self.stack_st[0].stats.sac = AttribDict(sacheader)
         return self.stack_st
 
-    def write_stack(self, outpath='./', format='txt'):
+    def write_stack(self, outpath='./', format='sac'):
         """Write stacked CCF to SAC file or ASCII file
 
         Parameters

@@ -36,7 +36,8 @@ class MyMPI(object):
     
     def finalize_mpi(self):
         self.world_comm.Barrier()
-        self.world_comm.Free()
+        self.world_comm.free()
+        self.node_comm.free()
 
     def synchronize_all(self):
         self.world_comm.Barrier()

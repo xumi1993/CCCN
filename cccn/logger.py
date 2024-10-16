@@ -12,3 +12,6 @@ class Logger:
 
     def get_logger(self):
         return self.logger
+    
+    def destroy_logger(self):
+        self.logger.removeHandler(self.console_handler)

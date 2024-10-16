@@ -68,7 +68,8 @@ def create_quake(network, station, evla, evlo, evel=0.0):
 class CrossCorrelation():
     def __init__(self, para=None, level='INFO') -> None:
         self.mpi = MyMPI()
-        self.logger = Logger('CCCN', level=level).get_logger()
+        self.log = Logger('CCCN', level=level)
+        self.logger = self.log.get_logger()
         if para is None:
             self.para = Para()
         else:
@@ -113,7 +114,10 @@ class CrossCorrelation():
                 self.network.append(tr.stats.network)
                 self.station.append(tr.stats.station)
                 self.channel.append(tr.stats.channel)
-                self.staloc[i] = [tr.stats.sac.stla, tr.stats.sac.stlo, stel]
+                try:
+                    self.staloc[i] = [tr.stats.sac.stla, tr.stats.sac.stlo, stel]
+                except:
+                    self.staloc[i] = [0, 0, 0]                
         self.network = self.mpi.bcast(self.network)
         self.station = self.mpi.bcast(self.station)
         self.channel = self.mpi.bcast(self.channel)
@@ -134,8 +138,9 @@ class CrossCorrelation():
             timeend =  self.para.timeduration*(1-self.para.cut_precentatge)
             self.nft = int(next_pow_2((timeend-timestart)/self.dt))
             fftst = self.rawst.copy()
+            self.logger.info(f'Pre-processing of {self.reftime}')
             for tr in fftst:
-                self.logger.info(f'Pre-processing {tr.stats.network}_{tr.stats.station}_{tr.stats.channel}')
+                self.logger.debug(f'Pre-processing {tr.stats.network}_{tr.stats.station}_{tr.stats.channel}')
                 #------- cut waveform ------ 
                 cutbtime = self.reftime+timestart
                 cutetime = self.reftime+timeend
@@ -144,6 +149,11 @@ class CrossCorrelation():
                     self.rawst.remove(tr)
                     continue
                 tr.trim(cutbtime, cutetime)
+                if np.isnan(tr.data).any() or tr.data.all() == 0:
+                    self.logger.warning(f'Invalid value in {tr.stats.network}_{tr.stats.station}_{tr.stats.channel}, removed')
+                    fftst.remove(tr)
+                    self.rawst.remove(tr)
+                    continue
                 tr.detrend('linear')
                 tr.detrend('constant')
                 #----------normalize----------
@@ -178,7 +188,7 @@ class CrossCorrelation():
                 self.idxij.append([i, j])
         self.mpi.synchronize_all()
 
-    def run_cc(self):
+    def run_cc(self, action='w'):
         self.prepare_cc()
         mid_pos = int(self.nft/2)
         nlag = int(self.para.maxlag/self.dt)
@@ -187,7 +197,7 @@ class CrossCorrelation():
                 channel = self.channel[idxij[0]][-1]+self.channel[idxij[1]][-1]
                 sta_pair = '{}_{}'.format(f'{self.network[idxij[0]]}_{self.station[idxij[0]]}',
                                           f'{self.network[idxij[1]]}_{self.station[idxij[1]]}')
-                self.logger.info(f'Computing cross-correlation between {sta_pair}')
+                self.logger.info(f'rank {self.mpi.world_rank}: ({i+1}/{len(self.idxij)}) Computing cross-correlation of {self.reftime.strftime('%Y%j%H%M%S')}-{sta_pair}')
                 ccf = fftpack.ifft(self.fftarr[idxij[0]]*np.conj(self.fftarr[idxij[1]]), self.nft).real
                 ccf = fftpack.ifftshift(ccf)[mid_pos-nlag:mid_pos+nlag+1]
                 cor = SACTrace(data=ccf)
@@ -209,12 +219,13 @@ class CrossCorrelation():
                 cor_tr.stats.npts = cor.npts
                 cor_tr.stats.starttime = self.reftime
                 ff = join('COR_{}_{}.h5'.format(sta_pair, channel))
-                self.create_dataset(ff, idxij)
+                self.create_dataset(ff, idxij, action=action)
                 self.write_cc(ff, cor_tr)
+        self.mpi.synchronize_all()
 
-    def create_dataset(self, fname, idxij, exist_ok=True):
+    def create_dataset(self, fname, idxij, exist_ok=True, action='w'):
         os.makedirs(self.para.outpath, exist_ok=exist_ok)
-        if os.path.isfile(join(self.para.outpath, fname)):
+        if os.path.isfile(join(self.para.outpath, fname)) and action == 'a':
             return
         with pyasdf.ASDFDataSet(join(self.para.outpath,fname), mpi=False,compression="gzip-3",mode='w') as ds:
             stel = self.staloc[idxij[1]][2]
@@ -234,7 +245,7 @@ class CrossCorrelation():
             ds.add_quakeml(quake)
 
     def write_cc(self, fname, tr):
-        with pyasdf.ASDFDataSet(fname, mpi=False,compression="gzip-3",mode='a') as ds:
+        with pyasdf.ASDFDataSet(join(self.para.outpath,fname), mpi=False,compression="gzip-3",mode='a') as ds:
             new_tags = self.reftime.strftime('%Y%m%d%H%M%S')
             ds.add_waveforms(tr, tag=new_tags)  
 
@@ -242,6 +253,11 @@ class CrossCorrelation():
         if self.mpi.world_rank == 0:
             for ff in glob.glob(join(self.para.outpath, '*.h5')):
                 os.remove(ff)
+        self.mpi.synchronize_all()
+
+    def finalize(self):
+        self.mpi.finalize_mpi()
+        self.log.destroy_logger()
 
 
 if __name__ == '__main__':
