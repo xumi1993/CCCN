@@ -13,6 +13,7 @@ class Para():
         self.target_dt = None
         self.reftime = 'day'
         self.maxlag = 500
+        self.src_mask = []
 
     def bcast(self, mympi):
         mympi.bcast(self.datapath)

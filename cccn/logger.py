@@ -9,6 +9,10 @@ class Logger:
         self.console_handler.setLevel(level)
         self.console_handler.setFormatter(self.formatter)
         self.logger.addHandler(self.console_handler)
+        self.file_handler = logging.FileHandler('{}.log'.format(name))
+        self.file_handler.setLevel(level)
+        self.file_handler.setFormatter(self.formatter)
+        self.logger.addHandler(self.file_handler)
 
     def get_logger(self):
         return self.logger

@@ -10,17 +10,20 @@ import pyasdf
 class PostProcForNoise:
     def __init__(self, fname) -> None:
         self.fname = fname
-        self.ds = pyasdf.ASDFDataSet(self.fname)
-        self.stname = self.ds.waveforms.list()[0]
-        self.tags = [tag for tag in self.ds.waveforms[self.stname].get_waveform_tags()]
+        # self.ds = pyasdf.ASDFDataSet(self.fname)
+        with pyasdf.ASDFDataSet(self.fname) as ds:
+            self.waveforms = ds.waveforms
+            self.events = ds.events
+        self.stname = self.waveforms.list()[0]
+        self.tags = [tag for tag in self.waveforms[self.stname].get_waveform_tags()]
         self.ccfstream = obspy.Stream()
         for tag in self.tags:
-            self.ccfstream += self.ds.waveforms[self.stname][tag]
-        self.evname = self.ds.events[0].resource_id.id.split('/')[-1]
-        stainfo = self.ds.get_all_coordinates()
-        self.evla = self.ds.events[0].origins[0].latitude
-        self.evlo = self.ds.events[0].origins[0].longitude
-        self.evel = -self.ds.events[0].origins[0].depth
+            self.ccfstream += self.waveforms[self.stname][tag]
+        self.evname = self.events[0].resource_id.id.split('/')[-1]
+        stainfo = self.get_all_coordinates()
+        self.evla = self.events[0].origins[0].latitude
+        self.evlo = self.events[0].origins[0].longitude
+        self.evel = -self.events[0].origins[0].depth
         self.stla = stainfo[self.stname]['latitude']
         self.stlo = stainfo[self.stname]['longitude']
         self.stel = stainfo[self.stname]['elevation_in_m']
@@ -30,7 +33,7 @@ class PostProcForNoise:
         if normalize:
             self.stack_st.normalize()
         # st_all[0].stats.update(ds.waveforms[sta][tag][0].stats.sac)
-        self.stack_st[0].stats.starttime = self.ds.waveforms[self.stname][self.tags[0]][0].stats.starttime
+        self.stack_st[0].stats.starttime = self.waveforms[self.stname][self.tags[0]][0].stats.starttime
         if add_sac_header:
             sacheader = SACTrace()._header
             sacheader['knetwk'] = self.stname.split('.')[0]
