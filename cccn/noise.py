@@ -175,7 +175,7 @@ class CrossCorrelation():
                 sta_pair = '{}_{}'.format(f'{self.network[idxij[0]]}_{self.station[idxij[0]]}',
                                           f'{self.network[idxij[1]]}_{self.station[idxij[1]]}')
                 # self.create_dataset('COR_{}_{}.h5'.format(sta_pair, channel), idxij, action=action)
-                self.logger.info(f'rank {self.mpi.world_rank}: ({i+1}/{len(self.idxij)}) Computing cross-correlation of {self.reftime.strftime('%Y%j%H%M%S')}-{sta_pair}')
+                self.logger.info(f"rank {self.mpi.world_rank}: ({i+1}/{len(self.idxij)}) Computing cross-correlation of {self.reftime.strftime('%Y%j%H%M%S')}-{sta_pair}")
                 ccf = fftpack.ifft(self.fftarr[idxij[0]]*np.conj(self.fftarr[idxij[1]]), self.nft).real
                 ccf = fftpack.ifftshift(ccf)[mid_pos-nlag:mid_pos+nlag+1]
                 ff = join('COR_{}_{}.h5'.format(sta_pair, channel))
