@@ -34,6 +34,8 @@ class CrossCorrelation():
         self.nft = None
         self.ntr = None
         self.reftime = None
+        # First run after class creation overwrites existing COR files, then append.
+        self._is_first_run = True
     
     def read_data(self, matchstr='*'):
         if self.mpi.world_rank == 0:
@@ -137,7 +139,7 @@ class CrossCorrelation():
         self.mpi.sync_from_main(self.fftarr)
         self.prepare_stainfo()
 
-    def prepare_cc(self, action='w'):
+    def prepare_cc(self, action='a'):
         self.idxij = []
         if self.mpi.world_rank == 0:
             if self.para.src_mask:
@@ -165,8 +167,12 @@ class CrossCorrelation():
                 self.create_dataset('COR_{}_{}.h5'.format(sta_pair, channel), idxij, action=action)
         self.mpi.synchronize_all()
 
-    def run_cc(self, action='w'):
+    def run_cc(self, action=None):
+        if action is None:
+            action = 'w' if self._is_first_run else 'a'
         self.prepare_cc(action)
+        if self._is_first_run and action == 'w':
+            self._is_first_run = False
         mid_pos = int(self.nft/2)
         nlag = int(self.para.maxlag/self.dt)
         for i, idxij in enumerate(self.idxij):
@@ -175,14 +181,23 @@ class CrossCorrelation():
                 sta_pair = '{}_{}'.format(f'{self.network[idxij[0]]}_{self.station[idxij[0]]}',
                                           f'{self.network[idxij[1]]}_{self.station[idxij[1]]}')
                 # self.create_dataset('COR_{}_{}.h5'.format(sta_pair, channel), idxij, action=action)
-                self.logger.info(f"rank {self.mpi.world_rank}: ({i+1}/{len(self.idxij)}) Computing cross-correlation of {self.reftime.strftime('%Y%m%d%H%M%S')}-{sta_pair}")
+                if (i + 1) % 100 == 0 or i == len(self.idxij) - 1:
+                    self.logger.info(
+                        f"rank {self.mpi.world_rank}: ({i+1}/{len(self.idxij)}) "
+                        f"Computing cross-correlation of {self.reftime.strftime('%Y%m%d%H%M%S')}-{sta_pair}"
+                    )
+                else:
+                    self.logger.debug(
+                        f"rank {self.mpi.world_rank}: ({i+1}/{len(self.idxij)}) "
+                        f"Computing cross-correlation of {self.reftime.strftime('%Y%m%d%H%M%S')}-{sta_pair}"
+                    )
                 ccf = fftpack.ifft(self.fftarr[idxij[0]]*np.conj(self.fftarr[idxij[1]]), self.nft).real
                 ccf = fftpack.ifftshift(ccf)[mid_pos-nlag:mid_pos+nlag+1]
                 ff = join('COR_{}_{}.h5'.format(sta_pair, channel))
                 self.write_cc(ff, ccf)
         self.mpi.synchronize_all()
 
-    def create_dataset(self, fname, idxij, exist_ok=True, action='w'):
+    def create_dataset(self, fname, idxij, exist_ok=True, action='a'):
         os.makedirs(self.para.outpath, exist_ok=exist_ok)
         if os.path.isfile(join(self.para.outpath, fname)) and action == 'a':
             return

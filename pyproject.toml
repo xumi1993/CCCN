@@ -13,7 +13,6 @@ requires-python = ">=3.9"
 dependencies = [
     "obspy",
     "h5py",
-    "pyasdf",
     "pyyaml",
     "mpi4py",
 ]
