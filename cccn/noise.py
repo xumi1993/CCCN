@@ -11,8 +11,6 @@ from obspy.core.event.resourceid import ResourceIdentifier
 from obspy.io.sac import SACTrace
 from .util import *
 from .para import Para
-import time
-import pyasdf
 import glob
 from .parallel import MyMPI
 from .logger import Logger

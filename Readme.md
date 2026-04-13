@@ -31,7 +31,7 @@ pip install -e .
 ### Option 2: Conda
 
 ```bash
-conda create -n cccn python=3.11 obspy pyasdf mpi4py h5py scipy pyyaml -c conda-forge
+conda create -n cccn python=3.11 obspy mpi4py h5py scipy pyyaml -c conda-forge
 conda activate cccn
 pip install -e .
 ```
