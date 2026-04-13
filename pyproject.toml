@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cccn"
+version = "1.4.0"
+authors = [
+    { name = "Mijian Xu", email = "gomijianxu@gmail.com" },
+]
+license = { text = "GPLv3" }
+requires-python = ">=3.9"
+dependencies = [
+    "obspy",
+    "h5py",
+    "pyasdf",
+    "pyyaml",
+    "mpi4py",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]

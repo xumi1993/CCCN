@@ -4,6 +4,7 @@ from obspy.io.sac import SACTrace
 from obspy.core.util.attribdict import AttribDict
 from obspy.geodetics import gps2dist_azimuth
 from os.path import join
+from .stack import linear_stack, phase_weighted_stack, selective_stack
 import pyasdf
 
 
@@ -28,12 +29,35 @@ class PostProcForNoise:
         self.stlo = stainfo[self.stname]['longitude']
         self.stel = stainfo[self.stname]['elevation_in_m']
 
-    def stack_all(self, normalize=True, add_sac_header=True):
-        self.stack_st = self.ccfstream.copy().stack()
+    def stack_all(self, normalize=True, add_sac_header=True, method='linear'):
+        """
+        Stack all CCFs in the stream using the specified method.
+        Parameters
+        ----------
+        normalize : bool, optional
+            Whether to normalize the stacked trace, by default True
+        add_sac_header : bool, optional
+            Whether to add SAC header to the stacked trace, by default True
+        method : str, optional
+            Stacking method to use, options are 'linear', 'pws', or 'selective', by default 'linear'
+        Returns
+        -------
+        trace
+            The stacked trace after processing.
+        """
+        if method.lower() == 'linear':
+            self.stack_trace = linear_stack(self.ccfstream)
+        elif method.lower() == 'pws':
+            self.stack_trace = phase_weighted_stack(self.ccfstream)
+        elif method.lower() == 'selective':
+            self.stack_trace = selective_stack(self.ccfstream)
+        else:
+            raise ValueError("Invalid stacking method. Choose from 'linear', 'pws', or 'selective'.")
+
         if normalize:
-            self.stack_st.normalize()
+            self.stack_trace.normalize()
         # st_all[0].stats.update(ds.waveforms[sta][tag][0].stats.sac)
-        self.stack_st[0].stats.starttime = self.waveforms[self.stname][self.tags[0]][0].stats.starttime
+        self.stack_trace.stats.starttime = self.waveforms[self.stname][self.tags[0]][0].stats.starttime
         if add_sac_header:
             sacheader = SACTrace()._header
             sacheader['knetwk'] = self.stname.split('.')[0]
@@ -45,8 +69,8 @@ class PostProcForNoise:
             sacheader['evlo'] = self.evlo
             dis, _, _ = gps2dist_azimuth(self.evla, self.evlo, self.stla, self.stlo)
             sacheader['dist'] = dis/1000
-            self.stack_st[0].stats.sac = AttribDict(sacheader)
-        return self.stack_st
+            self.stack_trace.stats.sac = AttribDict(sacheader)
+        return self.stack_trace
 
     def write_stack(self, outpath='./', format='sac'):
         """Write stacked CCF to SAC file or ASCII file
