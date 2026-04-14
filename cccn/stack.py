@@ -33,13 +33,16 @@ def phase_weighted_stack(arrays, power:int=2):
     np.ndarray: The phase-weighted stack of the input traces.
     """
     arr = _as_2d_array(arrays)
+    n_samples = arr.shape[1]
 
     # Compute the analytic signal for each trace
-    analytic_signals = hilbert(arr, N=next_fast_len(arr.shape[1]), axis=1)
+    analytic_signals = hilbert(arr, N=next_fast_len(n_samples), axis=1)
     
     # Extract the instantaneous phase and amplitude
     phase = np.angle(analytic_signals)
     phase_stack = np.abs(np.mean(np.exp(1j * phase), axis=0)) ** power
+    # Hilbert with N>n_samples pads output; trim back to original trace length.
+    phase_stack = phase_stack[:n_samples]
     
     # Compute the weighted stack
     weighted = np.multiply(arr, phase_stack)
