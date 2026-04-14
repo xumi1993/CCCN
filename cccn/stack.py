@@ -1,5 +1,6 @@
 import numpy as np
 import obspy
+from obspy.io.sac import SACTrace
 from scipy.signal import hilbert
 from scipy.fftpack import next_fast_len
 import h5py
@@ -96,30 +97,17 @@ class Stack:
         self.header = data['header']
         self.tags = data['tags']
         self.arrays = data['arrays']
-        self.stream = self.to_stream()
-
+        self.stacked = obspy.Trace()
 
     def _build_trace(self, data):
-        tr = obspy.Trace(data=np.asarray(data, dtype=np.float64))
-        tr.stats.delta = float(self.header.get('delta', 1.0))
-
-        # Map station/channel metadata from COR header into Trace stats.
-        tr.stats.network = str(self.header.get('network1', ''))
-        tr.stats.station = str(self.header.get('station1', ''))
-        tr.stats.channel = '{}{}'.format(
-            self.header.get('channel1', ''),
-            self.header.get('channel2', ''),
-        )
-
-        tr.stats.cc = {
-            'network1': self.header.get('network1', ''),
-            'station1': self.header.get('station1', ''),
-            'channel1': self.header.get('channel1', ''),
-            'network2': self.header.get('network2', ''),
-            'station2': self.header.get('station2', ''),
-            'channel2': self.header.get('channel2', ''),
-            'lag': self.header.get('lag', None),
-        }
+        data = np.asarray(data, dtype=np.float32)
+        sactr = SACTrace(data=data, npts=len(data))
+        sactr.delta = float(self.header.get('delta'))
+        sactr.kevnm = f"{self.header.get('network1', '')}.{self.header.get('station1', '')}"
+        sactr.kcmpnm = f"{self.header.get('channel1', '')}_{self.header.get('channel2', '')}"
+        sactr.knetwk = self.header.get('network2', '')
+        sactr.kstnm = self.header.get('station2', '')
+        tr = sactr.to_obspy_trace()
         return tr
 
     def stack(self, method: str = 'linear', **kwargs):
@@ -129,13 +117,24 @@ class Stack:
         m = method.lower()
         if m == 'linear':
             stacked = linear_stack(self.arrays)
-            return self._build_trace(stacked)
-        if m == 'pws':
+            self.stacked = self._build_trace(stacked)
+        elif m == 'pws':
             power = kwargs.get('power', 2)
             stacked = phase_weighted_stack(self.arrays, power=power)
-            return self._build_trace(stacked)
-        if m == 'selective':
+            self.stacked = self._build_trace(stacked)
+        elif m == 'selective':
             epsilon = kwargs.get('epsilon', 1e-3)
             stacked = selective_stack(self.arrays, epsilon=epsilon)
-            return self._build_trace(stacked)
-        raise ValueError("method must be one of: 'linear', 'pws', 'selective'")
+            self.stacked = self._build_trace(stacked)
+        else:
+            raise ValueError("method must be one of: 'linear', 'pws', 'selective', got: {}".format(method))
+    
+    def fold(self):
+        if (not self.stacked) or (self.stacked.data is None):
+            raise ValueError('No stacked trace found. Please run stack() method first.')
+        mid_pos = int((self.stacked.stats.npts-1)/2)
+        sym = np.zeros(mid_pos+1)
+        sym[0] = self.stacked.data[mid_pos]
+        sym[1::] = self.stacked.data[0:mid_pos][::-1]+self.stacked.data[(mid_pos+1)::]
+        tr_sym = self._build_trace(sym)
+        return tr_sym
