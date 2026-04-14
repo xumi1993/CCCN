@@ -3,12 +3,7 @@ import os
 from os.path import join, exists
 import numpy as np
 from obspy.signal.util import next_pow_2
-from obspy.core.inventory import Inventory, Network, Station, Channel
 from scipy import fftpack
-from obspy.core.event.event import Event
-from obspy.core.event.origin import Origin
-from obspy.core.event.resourceid import ResourceIdentifier
-from obspy.io.sac import SACTrace
 from .util import *
 from .para import Para
 import glob
@@ -20,12 +15,19 @@ from .io import NoiseFile
 class CrossCorrelation():
     def __init__(self, para=None, level='INFO') -> None:
         self.mpi = MyMPI()
-        self.log = Logger('CCCN', level=level)
-        self.logger = self.log.get_logger()
         if para is None:
             self.para = Para()
         else:
             self.para = para
+
+        os.makedirs(self.para.outpath, exist_ok=True)
+        self.log = Logger(
+            'CCCN',
+            level=level,
+            log_file=join(self.para.outpath, 'CCCN.log'),
+            rank=self.mpi.world_rank,
+        )
+        self.logger = self.log.get_logger()
         self.rawst = obspy.Stream()
         self.para.bcast(self.mpi)
         self.dt = None
@@ -93,6 +95,14 @@ class CrossCorrelation():
             timestart = self.para.timeduration*self.para.cut_precentatge
             timeend =  self.para.timeduration*(1-self.para.cut_precentatge)
             self.nft = int(next_pow_2((timeend-timestart)/self.dt))
+            nyquist = 0.5 / self.dt
+            freq_step = 1 / (self.dt * self.nft)
+            if not 0 < self.para.freqmin < self.para.freqmax < nyquist:
+                raise ValueError(
+                    f"Invalid whitening band: freqmin={self.para.freqmin}, "
+                    f"freqmax={self.para.freqmax}, Nyquist={nyquist}. "
+                    f"Require 0 < freqmin < freqmax < Nyquist."
+                )
             fftst = self.rawst.copy()
             self.logger.info(f'Pre-processing of {self.reftime}')
             for tr in fftst:
@@ -120,8 +130,13 @@ class CrossCorrelation():
                 else:
                     raise ValueError("Half window length must be greater than zero")
                 #----------- Whiten -----------
-                f1 = 1/(1.5*(1/self.para.freqmin))
-                f4 = 1/(0.75*(1/self.para.freqmax))
+                f1 = self.para.freqmin / 1.5
+                f4 = min(self.para.freqmax / 0.75, nyquist - freq_step)
+                if f4 <= self.para.freqmax:
+                    raise ValueError(
+                        f"freqmax={self.para.freqmax} is too close to Nyquist={nyquist} "
+                        f"for whitening taper with dt={self.dt} and Nfft={self.nft}."
+                    )
                 (tr.data,tr.stats.delta) = whiten(tr.data, self.nft, self.dt, f1, self.para.freqmin, self.para.freqmax, f4)
             self.ntr = len(fftst)
         self.mpi.synchronize_all()

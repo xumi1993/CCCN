@@ -85,6 +85,14 @@ def whiten(data, Nfft, delta, f1, f2, f3, f4):
     nt2 = int(f2/dom)
     nt3 = int(f3/dom)
     nt4 = int(f4/dom)
+    half_nfft = Nfft // 2
+
+    if not 0 <= nt1 < nt2 < nt3 < nt4 <= half_nfft:
+        raise ValueError(
+            f"Invalid whitening frequency indices: nt1={nt1}, nt2={nt2}, nt3={nt3}, nt4={nt4}, "
+            f"half_nfft={half_nfft}, delta={delta}, Nfft={Nfft}, "
+            f"f1={f1}, f2={f2}, f3={f3}, f4={f4}"
+        )
 
     FFTRawSign = fftpack.fft(data, Nfft)
 
